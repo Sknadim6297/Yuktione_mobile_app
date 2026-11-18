@@ -31,14 +31,14 @@ import { CustomerPage, IconButton } from '@/features/customer/ui';
 import {
   fetchExperts,
   fetchProgrammeEvents,
-  fetchTools,
   type ApiExpert,
   type ApiExpertCategory,
   type ApiProgrammeEvent,
   type ApiTool,
 } from '@/services/api/catalog';
 import { resolveImageUrl, websiteImage } from '@/services/media/imageUrl';
-import { customer, customerFonts } from '@/theme';
+import { selectTools, useToolsCatalogue } from '@/features/tools/toolsCatalogue';
+import { brand, customer, customerFonts } from '@/theme';
 
 const LIVE = !FRONTEND_ONLY && isApiConfigured();
 
@@ -98,15 +98,7 @@ export function HomeScreen() {
     }, [queryClient, account.enabled, account.userId]),
   );
 
-  const tools = useQuery({
-    queryKey: ['v1', 'tools'],
-    queryFn: async () => {
-      const result = await fetchTools();
-      if (!result.ok) throw new Error(result.message);
-      return result.tools;
-    },
-    enabled: LIVE,
-  });
+  const tools = useToolsCatalogue({ select: selectTools, enabled: LIVE });
 
   const experts = useQuery({
     queryKey: ['v1', 'experts', 'featured'],
@@ -357,7 +349,7 @@ function Hero({ width }: { width: number }) {
         {content}
         <RemoteImage
           uri={websiteImage('hero')}
-          background={customer.navy}
+          background={brand.plumDeep}
           fallback={<View />}
           style={styles.heroWideImage}
         />
@@ -368,16 +360,16 @@ function Hero({ width }: { width: number }) {
   return (
     <RemoteImage
       uri={websiteImage('hero')}
-      background={customer.navy}
+      background={brand.plumDeep}
       fallback={<View />}
       style={[styles.hero, { height: Math.round(Math.min(Math.max(width * 1.08, 380), 480)) }]}
     >
       <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" preserveAspectRatio="none">
         <Defs>
           <LinearGradient id="heroScrim" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0.28" stopColor={customer.navy} stopOpacity="0" />
-            <Stop offset="0.62" stopColor={customer.navy} stopOpacity="0.55" />
-            <Stop offset="1" stopColor={customer.navy} stopOpacity="0.92" />
+            <Stop offset="0.28" stopColor={brand.plumDeep} stopOpacity="0" />
+            <Stop offset="0.62" stopColor={brand.plumDeep} stopOpacity="0.55" />
+            <Stop offset="1" stopColor={brand.plumDeep} stopOpacity="0.92" />
           </LinearGradient>
         </Defs>
         <Rect x="0" y="0" width="100%" height="100%" fill="url(#heroScrim)" />
@@ -395,7 +387,7 @@ function ConsultBanner({ width }: { width: number }) {
       <RemoteImage
         uri={websiteImage('experts')}
         resizeMode="contain"
-        background="#F5EEE8"
+        background={brand.heroCream}
         inset={8}
         style={[styles.consultImage, wide ? styles.consultImageWide : { height: imageHeight }]}
       />
@@ -791,7 +783,7 @@ const styles = StyleSheet.create({
   toolName: { fontFamily: customerFonts.bold, fontSize: 15, color: customer.navy },
   toolBlurb: { fontFamily: customerFonts.regular, fontSize: 13, lineHeight: 18, color: customer.body },
   access: { fontFamily: customerFonts.bold, fontSize: 11, color: customer.teal, marginTop: 2 },
-  accessPaid: { color: '#B7791F' },
+  accessPaid: { color: brand.copper },
 
   programmeCard: {
     width: 260,

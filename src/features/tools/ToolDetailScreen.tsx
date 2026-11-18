@@ -27,7 +27,7 @@ import {
 const TONE_BG = {
   green: colors.brand.eucalyptusSoft,
   lavender: colors.brand.lavenderSoft,
-  peach: '#F8EFE3',
+  peach: '#F7EBDD',
 } as const;
 
 const TONE_FG = {
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.eucalyptusSoft,
   },
   badgePaid: {
-    backgroundColor: '#F8EFE3',
+    backgroundColor: '#F7EBDD',
   },
   accessText: {
     fontFamily: fontFamilies.bodySans,
@@ -308,17 +308,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     alignItems: 'center',
-    backgroundColor: '#FFF8F0',
+    backgroundColor: '#FBF3EA',
     borderRadius: radius.xl,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: '#F0E0CC',
+    borderColor: '#EBD8C4',
   },
   premiumIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F8EFE3',
+    backgroundColor: '#F7EBDD',
     alignItems: 'center',
     justifyContent: 'center',
   },

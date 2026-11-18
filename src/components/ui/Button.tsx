@@ -1,13 +1,5 @@
-import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
-
-import { PressableScale } from '@/components/motion';
-import { colors, motion, radius, spacing, typography } from '@/theme';
+import { PrimaryButton, SecondaryButton } from '@/components/brand/BrandButtons';
+import type { StyleProp, ViewStyle } from 'react-native';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost';
 
@@ -23,6 +15,7 @@ export type ButtonProps = {
   testID?: string;
 };
 
+/** Legacy form button — renders the website pill buttons so every screen shares one style. */
 export function Button({
   title,
   variant = 'primary',
@@ -30,81 +23,18 @@ export function Button({
   fullWidth = true,
   disabled,
   onPress,
-  accessibilityLabel,
   style,
   testID,
 }: ButtonProps) {
-  const isDisabled = Boolean(disabled || loading);
-
+  const Base = variant === 'primary' ? PrimaryButton : SecondaryButton;
   return (
-    <PressableScale
-      accessibilityRole="button"
-      accessibilityState={{ disabled: isDisabled, busy: loading }}
-      accessibilityLabel={accessibilityLabel ?? title}
-      disabled={isDisabled}
-      scaleTo={motion.press.in}
-      onPress={onPress}
+    <Base
+      label={title}
+      loading={loading}
+      disabled={disabled}
+      onPress={onPress ?? (() => undefined)}
       testID={testID}
-      style={[
-        styles.base,
-        fullWidth && styles.fullWidth,
-        variantStyles[variant],
-        isDisabled && styles.disabled,
-        style,
-      ]}
-    >
-      {loading ? (
-        <ActivityIndicator
-          color={variant === 'ghost' ? colors.brand.eucalyptus : colors.text.inverse}
-        />
-      ) : (
-        <Text style={[styles.label, labelStyles[variant]]}>{title}</Text>
-      )}
-    </PressableScale>
+      style={[fullWidth ? { alignSelf: 'stretch' } : { alignSelf: 'center' }, style]}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    minHeight: 52,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.xxl,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fullWidth: {
-    alignSelf: 'stretch',
-  },
-  disabled: {
-    opacity: 0.55,
-  },
-  label: {
-    ...typography.button,
-  },
-});
-
-const variantStyles = StyleSheet.create({
-  primary: {
-    backgroundColor: colors.interactive.primary,
-  },
-  secondary: {
-    backgroundColor: colors.interactive.secondary,
-  },
-  ghost: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-});
-
-const labelStyles = StyleSheet.create({
-  primary: {
-    color: colors.text.inverse,
-  },
-  secondary: {
-    color: colors.text.inverse,
-  },
-  ghost: {
-    color: colors.text.primary,
-  },
-});

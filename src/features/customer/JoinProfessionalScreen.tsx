@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { openWebsitePath } from '@/services/website/openWebsite';
-import { art } from '@/features/customer/content';
+import { BRAND_ASSETS } from '@/constants/brandAssets';
 import { CustomerPage, Heading, Subtitle, TealButton } from '@/features/customer/ui';
-import { customer, customerFonts } from '@/theme';
+import { brand, customer, customerFonts } from '@/theme';
 
 const ROLES = [
   ['Wellness Coach', 'flower-outline'],
@@ -41,7 +41,7 @@ export function JoinProfessionalScreen() {
         </Pressable>
       </View>
     }>
-      <Image source={art.splash} style={styles.hero} />
+      <Image source={BRAND_ASSETS.professionalLaptop} style={styles.hero} resizeMode="contain" accessibilityLabel="A professional working on a laptop" />
       <Heading>Join as a Professional</Heading>
       <Subtitle>Share your expertise, guide people and make a positive impact with YuktiOne.</Subtitle>
       <View style={styles.benefits}>
@@ -101,7 +101,7 @@ export function JoinProfessionalScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: { width: '100%', height: 180, borderRadius: 18 },
+  hero: { width: '100%', height: 190, borderRadius: 18, backgroundColor: brand.heroCream },
   benefits: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   benefit: { width: '48%', flexDirection: 'row', gap: 6, alignItems: 'center', backgroundColor: customer.white, borderRadius: 14, padding: 10, borderWidth: 1, borderColor: customer.line },
   benefitText: { flex: 1, fontFamily: customerFonts.medium, fontSize: 12, color: customer.navy },

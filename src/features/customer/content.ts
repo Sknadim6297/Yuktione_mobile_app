@@ -2,6 +2,8 @@ import type { ComponentProps } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import type { ImageSourcePropType } from 'react-native';
 
+import { BRAND_ASSETS, CATEGORY_IMAGES, PROGRAMME_IMAGES } from '@/constants/brandAssets';
+
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 
 /**
@@ -10,13 +12,13 @@ export type IconName = ComponentProps<typeof Ionicons>['name'];
  * Personal bookings, payments, and progress are stored separately.
  */
 export const art = {
-  lake: require('../../../assets/illustrations/onboarding-01.jpg') as ImageSourcePropType,
-  dawn: require('../../../assets/illustrations/onboarding-02.jpg') as ImageSourcePropType,
-  splash: require('../../../assets/illustrations/splash-landscape.jpg') as ImageSourcePropType,
-  hills: require('../../../assets/illustrations/auth-bottom-landscape.jpg') as ImageSourcePropType,
-  leaves: require('../../../assets/illustrations/auth-top-botanicals.jpg') as ImageSourcePropType,
-  lotus: require('../../../assets/brand/yuktione-lotus-mark.png') as ImageSourcePropType,
-};
+  lake: PROGRAMME_IMAGES.habits,
+  dawn: PROGRAMME_IMAGES.calm,
+  splash: BRAND_ASSETS.heroPoster,
+  hills: PROGRAMME_IMAGES.career,
+  leaves: CATEGORY_IMAGES.lifestyle,
+  lotus: CATEGORY_IMAGES.lotus,
+} satisfies Record<string, ImageSourcePropType>;
 
 export type MoodId = 'happy' | 'calm' | 'okay' | 'low' | 'stressed';
 
@@ -36,8 +38,8 @@ export const MOODS: MoodOption[] = [
     label: 'Happy',
     emoji: '😊',
     score: 9,
-    tint: '#FFF6D8',
-    ink: '#E0A100',
+    tint: '#F7EBDD',
+    ink: '#B87333',
     meaning: 'You seem bright and open today. Keep sharing that energy in small, kind ways.',
   },
   {
@@ -45,8 +47,8 @@ export const MOODS: MoodOption[] = [
     label: 'Calm',
     emoji: '🍃',
     score: 8,
-    tint: '#E5F8EF',
-    ink: '#1F9D6A',
+    tint: '#F8EAF1',
+    ink: '#8A0F4D',
     meaning:
       "You're feeling calm, focused and emotionally balanced. Your mindset is positive, which can help you stay productive and resilient.",
   },
@@ -55,8 +57,8 @@ export const MOODS: MoodOption[] = [
     label: 'Okay',
     emoji: '😐',
     score: 6,
-    tint: '#FFF1E6',
-    ink: '#E08A3C',
+    tint: '#F7EBDD',
+    ink: '#B87333',
     meaning: 'You are steady, not stuck. A short pause or a kind check-in can lift the rest of the day.',
   },
   {
@@ -64,8 +66,8 @@ export const MOODS: MoodOption[] = [
     label: 'Low',
     emoji: '☁️',
     score: 4,
-    tint: '#EEF1FB',
-    ink: '#5C6BC0',
+    tint: '#F6EEF9',
+    ink: '#7B3F96',
     meaning: 'Energy is low today. Keep the plan small: water, a short walk, and one gentle task.',
   },
   {
@@ -73,8 +75,8 @@ export const MOODS: MoodOption[] = [
     label: 'Stressed',
     emoji: '⚡',
     score: 3,
-    tint: '#FDECEF',
-    ink: '#E25B8A',
+    tint: '#FCE8F1',
+    ink: '#C3196B',
     meaning: 'Stress is asking for a slower pace. A few longer exhales can bring the body back first.',
   },
 ];
@@ -100,26 +102,26 @@ export type CatalogTool = {
 };
 
 export const TOOLS: CatalogTool[] = [
-  { id: 'mood-check-in', name: 'Mood Check-in', blurb: 'Track your mood daily', group: 'daily', filters: ['wellbeing'], price: 'free', icon: 'leaf-outline', tint: '#E7F8F0', ink: '#1F9D6A', runner: 'mood' },
-  { id: 'journal', name: 'Journal', blurb: 'Write, reflect and grow', group: 'daily', filters: ['wellbeing'], price: 'free', icon: 'book-outline', tint: '#F1ECFF', ink: '#6E5BD6', runner: 'journal' },
-  { id: 'gratitude', name: 'Gratitude', blurb: 'Build a positive mindset', group: 'daily', filters: ['wellbeing', 'lifestyle'], price: 'free', icon: 'heart-outline', tint: '#E7F8F0', ink: '#1F9D6A', runner: 'gratitude' },
-  { id: 'goal-tracker', name: 'Goal Tracker', blurb: 'Set and track your goals', group: 'daily', filters: ['career', 'lifestyle'], price: 'free', icon: 'flag-outline', tint: '#F1ECFF', ink: '#6E5BD6', runner: 'goals' },
-  { id: 'habit-builder', name: 'Habit Builder', blurb: 'Build better daily habits', group: 'daily', filters: ['lifestyle'], price: 'paid', icon: 'calendar-outline', tint: '#E8F6FB', ink: '#2A9BB5', runner: 'habits' },
-  { id: 'meditation', name: 'Meditation', blurb: 'Guided sessions for calm & focus', group: 'mind', filters: ['wellbeing'], price: 'free', icon: 'body-outline', tint: '#F1ECFF', ink: '#6E5BD6', runner: 'breathe' },
-  { id: 'breathing', name: 'Breathing Exercises', blurb: 'Relax, reset and feel balanced', group: 'mind', filters: ['wellbeing', 'health'], price: 'free', icon: 'fitness-outline', tint: '#E7F8F0', ink: '#1F9D6A', runner: 'breathe' },
-  { id: 'stress-relief', name: 'Stress Relief', blurb: 'Tools to manage stress effectively', group: 'mind', filters: ['wellbeing'], price: 'free', icon: 'cloud-outline', tint: '#EEF1FB', ink: '#5C6BC0', runner: 'breathe' },
-  { id: 'better-sleep', name: 'Better Sleep', blurb: 'Improve your sleep quality', group: 'mind', filters: ['health', 'lifestyle'], price: 'free', icon: 'moon-outline', tint: '#F1ECFF', ink: '#6E5BD6', runner: 'tips' },
-  { id: 'anxiety-support', name: 'Anxiety Support', blurb: 'Soothe anxiety with simple tools', group: 'mind', filters: ['wellbeing'], price: 'paid', icon: 'flash-outline', tint: '#FDECEF', ink: '#E25B8A', runner: 'note' },
-  { id: 'fitness', name: 'Fitness Tracker', blurb: 'Track activity, steps & calories', group: 'health', filters: ['health'], price: 'free', icon: 'walk-outline', tint: '#E7F8F0', ink: '#1F9D6A', runner: 'note' },
-  { id: 'nutrition', name: 'Nutrition Guide', blurb: 'Eat better with simple plans', group: 'health', filters: ['health', 'lifestyle'], price: 'free', icon: 'nutrition-outline', tint: '#FDECEF', ink: '#E25B6A', runner: 'tips' },
-  { id: 'bmi', name: 'BMI Calculator', blurb: 'Check your BMI in seconds', group: 'health', filters: ['health'], price: 'free', icon: 'calculator-outline', tint: '#E8F1FF', ink: '#3D6FE0', runner: 'bmi' },
-  { id: 'water', name: 'Water Reminder', blurb: 'Stay hydrated and healthy', group: 'health', filters: ['health', 'lifestyle'], price: 'free', icon: 'water-outline', tint: '#E7F6FB', ink: '#2A9BB5', runner: 'water' },
-  { id: 'wellness-tips', name: 'Wellness Tips', blurb: 'Daily tips for a healthier you', group: 'health', filters: ['lifestyle', 'wellbeing'], price: 'free', icon: 'flower-outline', tint: '#E7F8F0', ink: '#1F9D6A', runner: 'tips' },
-  { id: 'career-clarity', name: 'Career Clarity', blurb: 'Explore your interests, strengths and next steps.', group: 'daily', filters: ['career'], price: 'free', icon: 'locate-outline', tint: '#FFF0E4', ink: '#E08A3C', runner: 'note' },
-  { id: 'skills-tracker', name: 'Skills Tracker', blurb: 'Track, build and grow your key skills.', group: 'daily', filters: ['career'], price: 'free', icon: 'trending-up-outline', tint: '#E8F1FF', ink: '#3D6FE0', runner: 'goals' },
-  { id: 'weight-tracker', name: 'Weight Tracker', blurb: 'Log your weight, track trends and stay motivated.', group: 'health', filters: ['health'], price: 'free', icon: 'speedometer-outline', tint: '#E7F8F0', ink: '#1F9D6A', runner: 'note' },
-  { id: 'tarot', name: 'Tarot Reflection', blurb: 'Gain clarity and guidance with tarot insights.', group: 'mind', filters: ['lifestyle'], price: 'free', icon: 'sparkles-outline', tint: '#F1ECFF', ink: '#6E5BD6', runner: 'tips' },
-  { id: 'personal-growth', name: 'Personal Growth', blurb: 'Build better habits, focus and a happier life.', group: 'daily', filters: ['lifestyle', 'career'], price: 'free', icon: 'leaf-outline', tint: '#E7F8F0', ink: '#1F9D6A', runner: 'journal' },
+  { id: 'mood-check-in', name: 'Mood Check-in', blurb: 'Track your mood daily', group: 'daily', filters: ['wellbeing'], price: 'free', icon: 'leaf-outline', tint: '#F8EAF1', ink: '#8A0F4D', runner: 'mood' },
+  { id: 'journal', name: 'Journal', blurb: 'Write, reflect and grow', group: 'daily', filters: ['wellbeing'], price: 'free', icon: 'book-outline', tint: '#F6EEF9', ink: '#7B3F96', runner: 'journal' },
+  { id: 'gratitude', name: 'Gratitude', blurb: 'Build a positive mindset', group: 'daily', filters: ['wellbeing', 'lifestyle'], price: 'free', icon: 'heart-outline', tint: '#F8EAF1', ink: '#8A0F4D', runner: 'gratitude' },
+  { id: 'goal-tracker', name: 'Goal Tracker', blurb: 'Set and track your goals', group: 'daily', filters: ['career', 'lifestyle'], price: 'free', icon: 'flag-outline', tint: '#F6EEF9', ink: '#7B3F96', runner: 'goals' },
+  { id: 'habit-builder', name: 'Habit Builder', blurb: 'Build better daily habits', group: 'daily', filters: ['lifestyle'], price: 'paid', icon: 'calendar-outline', tint: '#FFF1F6', ink: '#C3196B', runner: 'habits' },
+  { id: 'meditation', name: 'Meditation', blurb: 'Guided sessions for calm & focus', group: 'mind', filters: ['wellbeing'], price: 'free', icon: 'body-outline', tint: '#F6EEF9', ink: '#7B3F96', runner: 'breathe' },
+  { id: 'breathing', name: 'Breathing Exercises', blurb: 'Relax, reset and feel balanced', group: 'mind', filters: ['wellbeing', 'health'], price: 'free', icon: 'fitness-outline', tint: '#F8EAF1', ink: '#8A0F4D', runner: 'breathe' },
+  { id: 'stress-relief', name: 'Stress Relief', blurb: 'Tools to manage stress effectively', group: 'mind', filters: ['wellbeing'], price: 'free', icon: 'cloud-outline', tint: '#F6EEF9', ink: '#7B3F96', runner: 'breathe' },
+  { id: 'better-sleep', name: 'Better Sleep', blurb: 'Improve your sleep quality', group: 'mind', filters: ['health', 'lifestyle'], price: 'free', icon: 'moon-outline', tint: '#F6EEF9', ink: '#7B3F96', runner: 'tips' },
+  { id: 'anxiety-support', name: 'Anxiety Support', blurb: 'Soothe anxiety with simple tools', group: 'mind', filters: ['wellbeing'], price: 'paid', icon: 'flash-outline', tint: '#FCE8F1', ink: '#C3196B', runner: 'note' },
+  { id: 'fitness', name: 'Fitness Tracker', blurb: 'Track activity, steps & calories', group: 'health', filters: ['health'], price: 'free', icon: 'walk-outline', tint: '#F8EAF1', ink: '#8A0F4D', runner: 'note' },
+  { id: 'nutrition', name: 'Nutrition Guide', blurb: 'Eat better with simple plans', group: 'health', filters: ['health', 'lifestyle'], price: 'free', icon: 'nutrition-outline', tint: '#FCE8F1', ink: '#C3196B', runner: 'tips' },
+  { id: 'bmi', name: 'BMI Calculator', blurb: 'Check your BMI in seconds', group: 'health', filters: ['health'], price: 'free', icon: 'calculator-outline', tint: '#FFF1F6', ink: '#C3196B', runner: 'bmi' },
+  { id: 'water', name: 'Water Reminder', blurb: 'Stay hydrated and healthy', group: 'health', filters: ['health', 'lifestyle'], price: 'free', icon: 'water-outline', tint: '#FFF1F6', ink: '#C3196B', runner: 'water' },
+  { id: 'wellness-tips', name: 'Wellness Tips', blurb: 'Daily tips for a healthier you', group: 'health', filters: ['lifestyle', 'wellbeing'], price: 'free', icon: 'flower-outline', tint: '#F8EAF1', ink: '#8A0F4D', runner: 'tips' },
+  { id: 'career-clarity', name: 'Career Clarity', blurb: 'Explore your interests, strengths and next steps.', group: 'daily', filters: ['career'], price: 'free', icon: 'locate-outline', tint: '#F7EBDD', ink: '#B87333', runner: 'note' },
+  { id: 'skills-tracker', name: 'Skills Tracker', blurb: 'Track, build and grow your key skills.', group: 'daily', filters: ['career'], price: 'free', icon: 'trending-up-outline', tint: '#FFF1F6', ink: '#C3196B', runner: 'goals' },
+  { id: 'weight-tracker', name: 'Weight Tracker', blurb: 'Log your weight, track trends and stay motivated.', group: 'health', filters: ['health'], price: 'free', icon: 'speedometer-outline', tint: '#F8EAF1', ink: '#8A0F4D', runner: 'note' },
+  { id: 'tarot', name: 'Tarot Reflection', blurb: 'Gain clarity and guidance with tarot insights.', group: 'mind', filters: ['lifestyle'], price: 'free', icon: 'sparkles-outline', tint: '#F6EEF9', ink: '#7B3F96', runner: 'tips' },
+  { id: 'personal-growth', name: 'Personal Growth', blurb: 'Build better habits, focus and a happier life.', group: 'daily', filters: ['lifestyle', 'career'], price: 'free', icon: 'leaf-outline', tint: '#F8EAF1', ink: '#8A0F4D', runner: 'journal' },
 ];
 
 export const TOOL_GROUPS: { id: ToolGroup; title: string; icon: IconName }[] = [
@@ -154,12 +156,12 @@ export type ExploreCategory = {
 };
 
 export const CATEGORIES: ExploreCategory[] = [
-  { slug: 'mental-wellbeing', title: 'Mental Wellbeing', subtitle: 'A calmer, stronger you', icon: 'flower-outline', tint: '#F1ECFF', ink: '#6E5BD6', summary: 'Tools, practices and expert support for a calmer, stronger you.', toolCount: 12, programmeCount: 4, expertCount: 18 },
-  { slug: 'career', title: 'Career', subtitle: 'Clarity for your next step', icon: 'briefcase-outline', tint: '#E8F1FF', ink: '#3D6FE0', summary: 'Coaching, planning tools and programmes for work you can feel good about.', toolCount: 8, programmeCount: 3, expertCount: 11 },
-  { slug: 'health-fitness', title: 'Health & Fitness', subtitle: 'Energy for everyday life', icon: 'fitness-outline', tint: '#E6F8EF', ink: '#1F9D6A', summary: 'Movement, nutrition and recovery support that stays practical.', toolCount: 9, programmeCount: 3, expertCount: 9 },
-  { slug: 'stress-anxiety', title: 'Stress & Anxiety', subtitle: 'Room to breathe again', icon: 'body-outline', tint: '#FFF0E4', ink: '#E08A3C', summary: 'Short practices and specialists for stress, worry and overload.', toolCount: 7, programmeCount: 2, expertCount: 10 },
-  { slug: 'better-sleep', title: 'Better Sleep', subtitle: 'Nights that restore you', icon: 'moon-outline', tint: '#F1ECFF', ink: '#6E5BD6', summary: 'Wind-down tools and guidance for deeper, steadier sleep.', toolCount: 5, programmeCount: 2, expertCount: 6 },
-  { slug: 'lifestyle-habits', title: 'Lifestyle & Habits', subtitle: 'Small changes that last', icon: 'leaf-outline', tint: '#E7F6FB', ink: '#2A9BB5', summary: 'Habit, nutrition and routine support for daily life.', toolCount: 8, programmeCount: 3, expertCount: 7 },
+  { slug: 'mental-wellbeing', title: 'Mental Wellbeing', subtitle: 'A calmer, stronger you', icon: 'flower-outline', tint: '#F6EEF9', ink: '#7B3F96', summary: 'Tools, practices and expert support for a calmer, stronger you.', toolCount: 12, programmeCount: 4, expertCount: 18 },
+  { slug: 'career', title: 'Career', subtitle: 'Clarity for your next step', icon: 'briefcase-outline', tint: '#FFF1F6', ink: '#C3196B', summary: 'Coaching, planning tools and programmes for work you can feel good about.', toolCount: 8, programmeCount: 3, expertCount: 11 },
+  { slug: 'health-fitness', title: 'Health & Fitness', subtitle: 'Energy for everyday life', icon: 'fitness-outline', tint: '#F8EAF1', ink: '#8A0F4D', summary: 'Movement, nutrition and recovery support that stays practical.', toolCount: 9, programmeCount: 3, expertCount: 9 },
+  { slug: 'stress-anxiety', title: 'Stress & Anxiety', subtitle: 'Room to breathe again', icon: 'body-outline', tint: '#F7EBDD', ink: '#B87333', summary: 'Short practices and specialists for stress, worry and overload.', toolCount: 7, programmeCount: 2, expertCount: 10 },
+  { slug: 'better-sleep', title: 'Better Sleep', subtitle: 'Nights that restore you', icon: 'moon-outline', tint: '#F6EEF9', ink: '#7B3F96', summary: 'Wind-down tools and guidance for deeper, steadier sleep.', toolCount: 5, programmeCount: 2, expertCount: 6 },
+  { slug: 'lifestyle-habits', title: 'Lifestyle & Habits', subtitle: 'Small changes that last', icon: 'leaf-outline', tint: '#FFF1F6', ink: '#C3196B', summary: 'Habit, nutrition and routine support for daily life.', toolCount: 8, programmeCount: 3, expertCount: 7 },
 ];
 
 export function categoryBySlug(slug: string): ExploreCategory | undefined {
@@ -208,15 +210,15 @@ export const EXPERTS: Expert[] = [
     reviews: 320,
     experience: '8+ years exp.',
     initials: 'AS',
-    tint: '#E7F3F1',
+    tint: '#F8EAF1',
     about:
       "I'm a clinical psychologist with 8+ years of experience, helping individuals manage stress, anxiety, relationships and build emotional resilience for a healthier, happier life.",
     areas: [
-      { label: 'Anxiety & Stress', icon: 'flower-outline', tint: '#F1ECFF', ink: '#6E5BD6' },
-      { label: 'Mood & Emotions', icon: 'happy-outline', tint: '#FFF0E4', ink: '#E08A3C' },
-      { label: 'Relationships', icon: 'people-outline', tint: '#FFF6DE', ink: '#C8960A' },
-      { label: 'Self-Esteem & Confidence', icon: 'ribbon-outline', tint: '#E8F1FF', ink: '#3D6FE0' },
-      { label: 'Lifestyle Balance', icon: 'leaf-outline', tint: '#E6F8EF', ink: '#1F9D6A' },
+      { label: 'Anxiety & Stress', icon: 'flower-outline', tint: '#F6EEF9', ink: '#7B3F96' },
+      { label: 'Mood & Emotions', icon: 'happy-outline', tint: '#F7EBDD', ink: '#B87333' },
+      { label: 'Relationships', icon: 'people-outline', tint: '#F7EBDD', ink: '#B87333' },
+      { label: 'Self-Esteem & Confidence', icon: 'ribbon-outline', tint: '#FFF1F6', ink: '#C3196B' },
+      { label: 'Lifestyle Balance', icon: 'leaf-outline', tint: '#F8EAF1', ink: '#8A0F4D' },
     ],
     verified: true,
     licensed: true,
@@ -230,12 +232,12 @@ export const EXPERTS: Expert[] = [
     reviews: 214,
     experience: '6+ years exp.',
     initials: 'RM',
-    tint: '#E8F1FF',
+    tint: '#FFF1F6',
     about:
       'I help professionals find clarity, choose a direction, and take the next practical step in their career without burning out.',
     areas: [
-      { label: 'Career Clarity', icon: 'briefcase-outline', tint: '#E8F1FF', ink: '#3D6FE0' },
-      { label: 'Confidence', icon: 'ribbon-outline', tint: '#F1ECFF', ink: '#6E5BD6' },
+      { label: 'Career Clarity', icon: 'briefcase-outline', tint: '#FFF1F6', ink: '#C3196B' },
+      { label: 'Confidence', icon: 'ribbon-outline', tint: '#F6EEF9', ink: '#7B3F96' },
     ],
     verified: true,
     licensed: false,
@@ -249,12 +251,12 @@ export const EXPERTS: Expert[] = [
     reviews: 189,
     experience: '7+ years exp.',
     initials: 'PS',
-    tint: '#E6F8EF',
+    tint: '#F8EAF1',
     about:
       'I work with people who want steadier energy, better food habits and a routine that fits real life.',
     areas: [
-      { label: 'Nutrition', icon: 'nutrition-outline', tint: '#E6F8EF', ink: '#1F9D6A' },
-      { label: 'Habits', icon: 'calendar-outline', tint: '#E7F6FB', ink: '#2A9BB5' },
+      { label: 'Nutrition', icon: 'nutrition-outline', tint: '#F8EAF1', ink: '#8A0F4D' },
+      { label: 'Habits', icon: 'calendar-outline', tint: '#FFF1F6', ink: '#C3196B' },
     ],
     verified: true,
     licensed: true,

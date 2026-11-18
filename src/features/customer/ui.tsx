@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
 import { type ReactNode, type Ref, useState } from 'react';
 import {
-  Image,
   Modal,
   Pressable,
   RefreshControl,
@@ -17,23 +16,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
+import { BrandLogo, PrimaryButton, SecondaryButton } from '@/components/brand';
 import { useSignOut } from '@/features/customer/useSignOut';
-import { customer, customerFonts, shadows } from '@/theme';
+import { brand, customer, customerFonts, shadows } from '@/theme';
 
-/** Official mark with black background removed for light UI surfaces. */
-const LOGO = require('../../../assets/brand/yuktione-logo-light.png');
-
-export function BrandLogo({ width = 132 }: { width?: number }) {
-  return (
-    <Image
-      source={LOGO}
-      style={{ width, height: width / 3 }}
-      resizeMode="contain"
-      accessibilityRole="image"
-      accessibilityLabel="YuktiOne"
-    />
-  );
-}
+export { BrandLogo };
 
 export function IconButton({
   icon,
@@ -174,7 +161,7 @@ export function BottomNav({ preset, active }: { preset: NavPreset; active: NavId
               <Ionicons
                 name={selected ? visual.icon : outlineIcon(visual.icon)}
                 size={21}
-                color={selected ? customer.teal : '#8B9AAB'}
+                color={selected ? brand.plum : customer.muted}
               />
               <Text style={[styles.navLabel, selected && styles.navLabelActive]} numberOfLines={1}>
                 {visual.label}
@@ -221,6 +208,7 @@ export function CustomerPage({
         ref={scrollRef}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={dismissKeyboardOnDrag ? 'on-drag' : 'none'}
+        automaticallyAdjustKeyboardInsets
         refreshControl={
           onRefresh ? (
             <RefreshControl
@@ -259,25 +247,14 @@ export function TealButton({
   iconPosition?: 'start' | 'end';
   disabled?: boolean;
 }) {
-  const iconNode = icon ? <Ionicons name={icon} size={18} color={customer.white} /> : null;
-  const endIcon = iconPosition === 'end';
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      disabled={disabled}
+    <PrimaryButton
+      label={label}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.tealButton,
-        endIcon && styles.tealButtonWithEndIcon,
-        pressed && !disabled && styles.tealPressed,
-        disabled && styles.disabled,
-      ]}
-    >
-      {iconPosition === 'start' ? iconNode : null}
-      <Text style={styles.tealButtonText}>{label}</Text>
-      {endIcon ? <View style={styles.tealButtonEndIcon}>{iconNode}</View> : null}
-    </Pressable>
+      icon={icon}
+      iconPosition={iconPosition}
+      disabled={disabled}
+    />
   );
 }
 
@@ -290,22 +267,24 @@ export function OutlineButton({
   onPress: () => void;
   icon?: keyof typeof Ionicons.glyphMap;
 }) {
-  return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={styles.outlineButton}>
-      {icon ? <Ionicons name={icon} size={18} color={customer.teal} /> : null}
-      <Text style={styles.outlineButtonText}>{label}</Text>
-    </Pressable>
-  );
+  return <SecondaryButton label={label} onPress={onPress} icon={icon} compact />;
 }
 
 export function SearchField({
   value,
   onChangeText,
   placeholder,
+  onClear,
+  maxLength,
+  accessibilityLabel,
 }: {
   value: string;
   onChangeText: (value: string) => void;
   placeholder: string;
+  /** Shows a clear button while there is text. */
+  onClear?: () => void;
+  maxLength?: number;
+  accessibilityLabel?: string;
 }) {
   return (
     <View style={styles.search}>
@@ -318,7 +297,21 @@ export function SearchField({
         style={styles.searchInput}
         autoCapitalize="none"
         autoCorrect={false}
+        maxLength={maxLength}
+        returnKeyType="search"
+        accessibilityLabel={accessibilityLabel ?? placeholder}
       />
+      {onClear && value.length > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Clear search"
+          onPress={onClear}
+          hitSlop={10}
+          style={styles.searchClear}
+        >
+          <Ionicons name="close" size={14} color={brand.white} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -471,7 +464,7 @@ export function DonutChart({
   return (
     <View style={styles.donutWrap}>
       <Svg width={size} height={size}>
-        <Circle cx={size / 2} cy={size / 2} r={radius} stroke="#EEF3F4" strokeWidth={stroke} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={radius} stroke={brand.plumSoft} strokeWidth={stroke} fill="none" />
         {arcs.map((segment) => (
             <Circle
               key={segment.label}
@@ -496,24 +489,18 @@ export function DonutChart({
   );
 }
 
-const MENU: { label: string; href: Href }[] = [
-  { label: 'Home', href: '/(tabs)/home' },
-  { label: 'Explore', href: '/(tabs)/explore' },
-  { label: 'All Tools', href: '/(tabs)/tools' },
-  { label: 'Experts', href: '/(tabs)/experts' },
-  { label: 'Programmes', href: '/programmes' },
-  { label: 'My Bookings', href: '/(tabs)/bookings' },
-  { label: 'My Space', href: '/(tabs)/my-space' },
-  { label: 'My Tools', href: '/my-tools' },
-  { label: 'My Progress', href: '/progress' },
-  { label: 'Reports', href: '/reports' },
-  { label: 'Join as a Professional', href: '/professional/join' },
-  // Previous (pre–24-screen) surfaces — still available without replacing primary UI
-  { label: 'Classic Auth Entry', href: '/auth/classic' },
-  { label: 'Classic Home (Mood)', href: '/classic/home' },
-  { label: 'Classic Quick Tools', href: '/classic/tools' },
-  { label: 'Classic Experts Directory', href: '/classic/experts' },
-  { label: 'Classic Category Landing', href: '/classic/categories/mental-wellbeing' },
+const MENU: { label: string; icon: keyof typeof Ionicons.glyphMap; href: Href }[] = [
+  { label: 'Home', icon: 'home-outline', href: '/(tabs)/home' },
+  { label: 'Explore', icon: 'compass-outline', href: '/(tabs)/explore' },
+  { label: 'All Tools', icon: 'grid-outline', href: '/(tabs)/tools' },
+  { label: 'Experts', icon: 'people-outline', href: '/(tabs)/experts' },
+  { label: 'Programmes & Events', icon: 'layers-outline', href: '/programmes' },
+  { label: 'My Bookings', icon: 'calendar-outline', href: '/(tabs)/bookings' },
+  { label: 'My Space', icon: 'person-outline', href: '/(tabs)/my-space' },
+  { label: 'My Tools', icon: 'bookmark-outline', href: '/my-tools' },
+  { label: 'My Progress', icon: 'stats-chart-outline', href: '/progress' },
+  { label: 'Reports', icon: 'bar-chart-outline', href: '/reports' },
+  { label: 'Join as a Professional', icon: 'briefcase-outline', href: '/professional/join' },
 ];
 
 export function AppMenu({ visible, onClose }: { visible: boolean; onClose: () => void }) {
@@ -523,28 +510,39 @@ export function AppMenu({ visible, onClose }: { visible: boolean; onClose: () =>
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <Text style={styles.sheetTitle}>YuktiOne</Text>
-          <ScrollView style={{ maxHeight: 420 }}>
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetHead}>
+            <BrandLogo width={120} />
+          </View>
+          <ScrollView style={{ maxHeight: 440 }}>
             {MENU.map((item) => (
               <Pressable
                 key={item.label}
-                style={styles.menuRow}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
                 onPress={() => {
                   onClose();
                   router.push(item.href);
                 }}
               >
+                <View style={styles.menuIcon}>
+                  <Ionicons name={item.icon} size={18} color={brand.plum} />
+                </View>
                 <Text style={styles.menuLabel}>{item.label}</Text>
                 <Ionicons name="chevron-forward" size={16} color={customer.muted} />
               </Pressable>
             ))}
             <Pressable
-              style={styles.menuRow}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
               onPress={() => {
                 onClose();
                 void signOutNow();
               }}
             >
+              <View style={[styles.menuIcon, styles.menuIconDanger]}>
+                <Ionicons name="log-out-outline" size={18} color={customer.danger} />
+              </View>
               <Text style={[styles.menuLabel, styles.dangerText]}>Sign out</Text>
             </Pressable>
           </ScrollView>
@@ -572,6 +570,15 @@ export const card = {
   ...shadows.sm,
 } as const;
 
+/** Website hover-lift card: plum-tinted shadow for featured surfaces. */
+export const featuredCard = {
+  ...card,
+  borderColor: brand.plumSoftDeep,
+  ...shadows.md,
+  shadowColor: brand.plum,
+  shadowOpacity: 0.12,
+} as const;
+
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: customer.canvas },
   header: {
@@ -589,64 +596,39 @@ const styles = StyleSheet.create({
   },
   headerCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   headerActions: { justifyContent: 'flex-end' },
-  tealButtonWithEndIcon: {
-    position: 'relative',
-  },
-  tealButtonEndIcon: {
-    position: 'absolute',
-    right: 18,
-    top: 0,
-    bottom: 0,
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: brand.white,
+    borderWidth: 1,
+    borderColor: customer.line,
   },
-  iconButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  iconButtonFilled: { backgroundColor: customer.teal, borderRadius: 18 },
+  iconButtonFilled: { backgroundColor: brand.plum, borderColor: brand.plum },
   badge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
+    top: 7,
+    right: 8,
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#E2556C',
-  },
-  scroll: { paddingHorizontal: 16, paddingBottom: 28, gap: 14 },
-  footer: { paddingHorizontal: 16, paddingTop: 8, backgroundColor: customer.canvas },
-  tealButton: {
-    minHeight: 52,
-    borderRadius: 16,
-    backgroundColor: customer.teal,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-  },
-  tealPressed: { backgroundColor: customer.tealDark },
-  disabled: { opacity: 0.55 },
-  tealButtonText: { color: customer.white, fontFamily: customerFonts.bold, fontSize: 16 },
-  outlineButton: {
-    minHeight: 48,
-    borderRadius: 16,
+    backgroundColor: brand.magenta,
     borderWidth: 1.5,
-    borderColor: customer.teal,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-    backgroundColor: customer.white,
-    paddingHorizontal: 12,
+    borderColor: brand.white,
   },
-  outlineButtonText: { color: customer.teal, fontFamily: customerFonts.bold, fontSize: 15 },
+  scroll: { paddingHorizontal: 16, paddingBottom: 28, gap: 16 },
+  footer: { paddingHorizontal: 16, paddingTop: 8, backgroundColor: customer.canvas },
   search: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     backgroundColor: customer.white,
-    borderRadius: 16,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: customer.line,
-    paddingHorizontal: 14,
+    borderColor: brand.silver,
+    paddingHorizontal: 16,
     minHeight: 48,
   },
   searchInput: {
@@ -656,27 +638,38 @@ const styles = StyleSheet.create({
     color: customer.navy,
     paddingVertical: 10,
   },
+  searchClear: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: customer.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   chips: { gap: 8, paddingRight: 8 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: customer.chip,
+    backgroundColor: customer.white,
+    borderWidth: 1,
+    borderColor: brand.silver,
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  chipOn: { backgroundColor: customer.teal },
-  chipText: { fontFamily: customerFonts.medium, color: customer.navy, fontSize: 13 },
+  chipOn: { backgroundColor: brand.plum, borderColor: brand.plum },
+  chipText: { fontFamily: customerFonts.semibold, color: customer.navy, fontSize: 13 },
   chipTextOn: { color: customer.white },
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { fontFamily: customerFonts.bold, fontSize: 18, color: customer.navy },
-  sectionAction: { fontFamily: customerFonts.bold, fontSize: 13, color: customer.teal },
+  sectionTitle: { fontFamily: customerFonts.bold, fontSize: 19, color: customer.navy, letterSpacing: -0.3 },
+  sectionAction: { fontFamily: customerFonts.bold, fontSize: 13, color: brand.plum },
   heading: {
     fontFamily: customerFonts.bold,
     fontSize: 28,
+    lineHeight: 34,
     color: customer.navy,
-    letterSpacing: -0.4,
+    letterSpacing: -0.8,
   },
   subtitle: {
     fontFamily: customerFonts.regular,
@@ -689,21 +682,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: customer.white,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: customer.line,
+    borderTopColor: brand.silver,
     paddingTop: 6,
     paddingHorizontal: 2,
+    ...shadows.md,
   },
-  navItem: { flex: 1, alignItems: 'center' },
+  navItem: { flex: 1, alignItems: 'center', minHeight: 48, justifyContent: 'center' },
   navIconWrap: {
     alignItems: 'center',
     paddingVertical: 4,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     borderRadius: 16,
-    minWidth: 58,
+    minWidth: 60,
   },
-  navIconActive: { backgroundColor: '#E5F8F3' },
-  navLabel: { fontFamily: customerFonts.medium, fontSize: 10, color: '#8B9AAB', marginTop: 2 },
-  navLabelActive: { color: customer.teal },
+  navIconActive: { backgroundColor: brand.plumSoft },
+  navLabel: { fontFamily: customerFonts.medium, fontSize: 10.5, color: customer.muted, marginTop: 2 },
+  navLabelActive: { color: brand.plum, fontFamily: customerFonts.bold },
   chartLabels: { flexDirection: 'row', justifyContent: 'space-between' },
   chartLabel: { fontSize: 10, color: customer.muted, fontFamily: customerFonts.regular },
   empty: { fontFamily: customerFonts.regular, color: customer.muted, fontSize: 13 },
@@ -711,15 +705,41 @@ const styles = StyleSheet.create({
   donutCenter: { position: 'absolute', alignItems: 'center' },
   donutValue: { fontFamily: customerFonts.bold, fontSize: 18, color: customer.navy },
   donutCaption: { fontFamily: customerFonts.regular, fontSize: 10, color: customer.muted },
-  backdrop: { flex: 1, backgroundColor: 'rgba(22, 40, 60, 0.4)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(31, 31, 31, 0.42)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: customer.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 16,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 16,
+    paddingTop: 10,
   },
-  sheetTitle: { fontFamily: customerFonts.bold, fontSize: 18, color: customer.navy, marginBottom: 8 },
-  menuRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  menuLabel: { fontFamily: customerFonts.medium, fontSize: 15, color: customer.navy },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: brand.silver,
+    marginBottom: 6,
+  },
+  sheetHead: { alignItems: 'flex-start', paddingVertical: 4, marginBottom: 4 },
+  menuRow: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 4,
+    borderRadius: 14,
+  },
+  menuRowPressed: { backgroundColor: brand.pearlDeep },
+  menuIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: brand.plumSoft,
+  },
+  menuIconDanger: { backgroundColor: '#FCEBEE' },
+  menuLabel: { flex: 1, fontFamily: customerFonts.semibold, fontSize: 15, color: customer.navy },
   dangerText: { color: customer.danger },
 });

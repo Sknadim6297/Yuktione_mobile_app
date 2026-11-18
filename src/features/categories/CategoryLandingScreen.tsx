@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconWrapPaid: {
-    backgroundColor: '#F8EFE3',
+    backgroundColor: '#F7EBDD',
   },
   cardCopy: {
     flex: 1,
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.eucalyptusSoft,
   },
   badgePaid: {
-    backgroundColor: '#F8EFE3',
+    backgroundColor: '#F7EBDD',
   },
   badgeText: {
     fontFamily: fontFamilies.bodySans,

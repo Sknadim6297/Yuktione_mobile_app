@@ -524,4 +524,9 @@ export function latestBooking(): Booking | undefined {
   return getCustomerState().bookings.find((booking) => booking.status !== 'cancelled');
 }
 
-void hydrateCustomerState();
+/**
+ * Resolves once the saved token (if any) has been checked against /api/v1/me.
+ * The root route awaits this so a returning customer lands on Home instead of
+ * being sent through onboarding and sign-in again.
+ */
+export const customerHydrated: Promise<void> = hydrateCustomerState();

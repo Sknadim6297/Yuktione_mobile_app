@@ -14,7 +14,12 @@ import {
   fetchPsychologyOptions,
   markNotificationRead,
   type BookingScope,
+  type GratitudeEntry,
+  type JournalEntry,
+  type MoodEntry,
+  type MyBooking,
   type MyNotificationsPage,
+  type PageMeta,
 } from '@/services/api/mySpace';
 import { clearAuthToken } from '@/services/api/tokenStorage';
 
@@ -31,6 +36,53 @@ export function formatStamp(iso: string | null | undefined): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** YYYY-MM-DD as the website prints session dates ('M d, Y'): "Mar 05, 2026". */
+export function formatSlotDate(date: string | null | undefined): string {
+  if (!date) return 'Date unavailable';
+  const [year, month, day] = date.slice(0, 10).split('-');
+  const name = MONTHS[Number(month) - 1];
+  return name && day && year ? `${name} ${day}, ${year}` : date;
+}
+
+const AGO_UNITS: [string, number][] = [
+  ['year', 365 * 86_400],
+  ['month', 30 * 86_400],
+  ['week', 7 * 86_400],
+  ['day', 86_400],
+  ['hour', 3_600],
+  ['minute', 60],
+  ['second', 1],
+];
+
+/** Carbon diffForHumans() wording used on the website: "3 days ago". */
+export function timeAgo(iso: string | null | undefined, now = Date.now()): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const seconds = Math.max(1, Math.round(Math.abs(now - then) / 1000));
+  const [unit, size] = AGO_UNITS.find(([, length]) => seconds >= length) ?? AGO_UNITS[AGO_UNITS.length - 1];
+  const count = Math.floor(seconds / size);
+  return `${count} ${unit}${count === 1 ? '' : 's'} ${now >= then ? 'ago' : 'from now'}`;
+}
+
+export type BadgeTone = 'success' | 'warning' | 'error' | 'neutral';
+
+/** Same mapping and label as the website status badge (components/tazen-v2/panel/status-badge). */
+export function statusBadge(status: string | null | undefined): { label: string; tone: BadgeTone } {
+  const normalized = (status ?? '').trim().toLowerCase();
+  const tone: BadgeTone = ['completed', 'paid', 'confirmed', 'approved', 'success', 'active'].includes(normalized)
+    ? 'success'
+    : ['pending', 'processing', 'rescheduled'].includes(normalized)
+      ? 'warning'
+      : ['cancelled', 'canceled', 'failed', 'rejected', 'error'].includes(normalized)
+        ? 'error'
+        : 'neutral';
+  const label = normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Unknown';
+  return { label, tone };
 }
 
 export function rangeForDays(days: RangeDays): { from: string; to: string } {
@@ -74,6 +126,130 @@ export function useMyBookings(scope: BookingScope) {
   return useInfiniteQuery({
     queryKey: ['v1', 'my', userId, 'bookings', scope],
     queryFn: ({ pageParam }) => guarded(() => fetchMyBookings({ scope, page: pageParam, perPage: 10 })),
+    initialPageParam: 1,
+    getNextPageParam: (last) =>
+      last.meta.current_page < last.meta.last_page ? last.meta.current_page + 1 : undefined,
+    enabled,
+    retry,
+  });
+}
+
+export type UpcomingSlot = {
+  key: string;
+  booking: MyBooking;
+  date: string;
+  time_slot: string;
+  status: string;
+};
+
+export type BookingOverview = {
+  /** Session rows dated today or later with status pending/confirmed, soonest first. */
+  upcomingSlots: UpcomingSlot[];
+  todayCount: number;
+  totalSessions: number;
+  completedSessions: number;
+  /** Five most recently created bookings. */
+  recent: MyBooking[];
+  /** True when the account has more bookings than the overview reads. */
+  partial: boolean;
+};
+
+const OVERVIEW_PAGE_SIZE = 20;
+const OVERVIEW_MAX_PAGES = 25;
+
+/**
+ * Same figures as the website customer dashboard (customer/index.blade.php), which counts
+ * session rows (booking_timedates), not bookings: upcoming = date >= today and status
+ * pending/confirmed; total = all session rows; completed = rows marked completed.
+ */
+export function summariseBookings(bookings: MyBooking[], today: string): Omit<BookingOverview, 'partial'> {
+  const upcomingSlots: UpcomingSlot[] = [];
+  let totalSessions = 0;
+  let completedSessions = 0;
+  for (const booking of bookings) {
+    totalSessions += booking.sessions.length;
+    for (const slot of booking.sessions) {
+      if (slot.status === 'completed') completedSessions += 1;
+      if (slot.date && slot.date >= today && (slot.status === 'pending' || slot.status === 'confirmed')) {
+        upcomingSlots.push({
+          key: `${booking.id}-${slot.id}`,
+          booking,
+          date: slot.date,
+          time_slot: slot.time_slot,
+          status: slot.status,
+        });
+      }
+    }
+  }
+  upcomingSlots.sort((a, b) => `${a.date} ${a.time_slot}`.localeCompare(`${b.date} ${b.time_slot}`));
+  return {
+    upcomingSlots,
+    todayCount: upcomingSlots.filter((slot) => slot.date === today).length,
+    totalSessions,
+    completedSessions,
+    recent: bookings.slice(0, 5),
+  };
+}
+
+export function useBookingOverview() {
+  const { userId, enabled } = useAccountScope();
+  return useQuery({
+    queryKey: ['v1', 'my', userId, 'bookings', 'overview'],
+    queryFn: () =>
+      guarded(async (): Promise<BookingOverview> => {
+        const bookings: MyBooking[] = [];
+        let page = 1;
+        let lastPage = 1;
+        do {
+          const result = await fetchMyBookings({ scope: 'all', page, perPage: OVERVIEW_PAGE_SIZE });
+          bookings.push(...result.bookings);
+          lastPage = result.meta.last_page;
+          page += 1;
+        } while (page <= lastPage && page <= OVERVIEW_MAX_PAGES);
+        return { ...summariseBookings(bookings, indiaDate(new Date())), partial: lastPage > OVERVIEW_MAX_PAGES };
+      }),
+    enabled,
+    retry,
+  });
+}
+
+export type HistoryKind = 'moods' | 'journal' | 'gratitude';
+
+type HistoryPage =
+  | { kind: 'moods'; entries: MoodEntry[]; meta: PageMeta }
+  | { kind: 'journal'; entries: JournalEntry[]; meta: PageMeta }
+  | { kind: 'gratitude'; entries: GratitudeEntry[]; meta: PageMeta };
+
+/** The API accepts at most 366 days per request. */
+export const HISTORY_DAYS = 366;
+
+/**
+ * Newest-first saved entries for one psychology tool. The key's 4th segment matches
+ * useSaveEntry's invalidation set, so a new save refreshes this list too.
+ */
+export function useToolHistory(kind: HistoryKind, perPage = 15) {
+  const { userId, enabled } = useAccountScope();
+  const now = new Date();
+  const range = {
+    from: indiaDate(new Date(now.getTime() - (HISTORY_DAYS - 1) * 86_400_000)),
+    to: indiaDate(now),
+  };
+  return useInfiniteQuery({
+    queryKey: ['v1', 'my', userId, kind, 'history', range.from, range.to, perPage],
+    queryFn: ({ pageParam }): Promise<HistoryPage> =>
+      guarded(async () => {
+        const params = { ...range, page: pageParam, perPage };
+        if (kind === 'moods') {
+          const result = await fetchMoodEntries(params);
+          return { kind, entries: result.entries, meta: result.meta };
+        }
+        if (kind === 'journal') {
+          const result = await fetchJournalEntries(params);
+          return { kind, entries: result.entries, meta: result.meta };
+        }
+        const result = await fetchGratitudeEntries(params);
+        return { kind, entries: result.entries, meta: result.meta };
+      }),
     initialPageParam: 1,
     getNextPageParam: (last) =>
       last.meta.current_page < last.meta.last_page ? last.meta.current_page + 1 : undefined,

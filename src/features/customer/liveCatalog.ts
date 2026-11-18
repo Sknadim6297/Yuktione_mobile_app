@@ -8,31 +8,31 @@ import type { ApiExpert, ApiTool, ApiToolCategory } from '@/services/api/catalog
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 const SLUG_ICONS: Record<string, { icon: IconName; tint: string; ink: string }> = {
-  'daily-mood-check-in': { icon: 'leaf-outline', tint: '#E7F8F0', ink: '#1F9D6A' },
-  'digital-journal': { icon: 'book-outline', tint: '#F1ECFF', ink: '#6E5BD6' },
-  'gratitude-journal': { icon: 'heart-outline', tint: '#E7F8F0', ink: '#1F9D6A' },
-  'career-interest-test': { icon: 'locate-outline', tint: '#FFF0E4', ink: '#E08A3C' },
+  'daily-mood-check-in': { icon: 'leaf-outline', tint: '#F8EAF1', ink: '#8A0F4D' },
+  'digital-journal': { icon: 'book-outline', tint: '#F6EEF9', ink: '#7B3F96' },
+  'gratitude-journal': { icon: 'heart-outline', tint: '#F8EAF1', ink: '#8A0F4D' },
+  'career-interest-test': { icon: 'locate-outline', tint: '#F7EBDD', ink: '#B87333' },
   'skills-strengths-assessment': {
     icon: 'trending-up-outline',
-    tint: '#E8F1FF',
-    ink: '#3D6FE0',
+    tint: '#FFF1F6',
+    ink: '#C3196B',
   },
-  'bmi-bmr-calculator': { icon: 'calculator-outline', tint: '#E8F1FF', ink: '#3D6FE0' },
-  'water-intake-tracker': { icon: 'water-outline', tint: '#E7F6FB', ink: '#2A9BB5' },
-  'weight-journey': { icon: 'speedometer-outline', tint: '#E7F8F0', ink: '#1F9D6A' },
+  'bmi-bmr-calculator': { icon: 'calculator-outline', tint: '#FFF1F6', ink: '#C3196B' },
+  'water-intake-tracker': { icon: 'water-outline', tint: '#FFF1F6', ink: '#C3196B' },
+  'weight-journey': { icon: 'speedometer-outline', tint: '#F8EAF1', ink: '#8A0F4D' },
   'calorie-nutrition-tracker': {
     icon: 'nutrition-outline',
-    tint: '#FDECEF',
-    ink: '#E25B6A',
+    tint: '#FCE8F1',
+    ink: '#C3196B',
   },
-  'tarot-reflection': { icon: 'moon-outline', tint: '#F1ECFF', ink: '#6E5BD6' },
+  'tarot-reflection': { icon: 'moon-outline', tint: '#F6EEF9', ink: '#7B3F96' },
 };
 
 const CATEGORY_TINT: Record<string, { tint: string; ink: string }> = {
-  psychology: { tint: '#E7F8F0', ink: '#1F9D6A' },
-  'career-guidance': { tint: '#FFF0E4', ink: '#E08A3C' },
-  nutrition: { tint: '#E8F1FF', ink: '#3D6FE0' },
-  'astrology-tarot': { tint: '#F1ECFF', ink: '#6E5BD6' },
+  psychology: { tint: '#F8EAF1', ink: '#8A0F4D' },
+  'career-guidance': { tint: '#F7EBDD', ink: '#B87333' },
+  nutrition: { tint: '#FFF1F6', ink: '#C3196B' },
+  'astrology-tarot': { tint: '#F6EEF9', ink: '#7B3F96' },
 };
 
 export function toolVisual(tool: ApiTool): { icon: IconName; tint: string; ink: string } {
@@ -42,35 +42,25 @@ export function toolVisual(tool: ApiTool): { icon: IconName; tint: string; ink: 
     : undefined;
   return {
     icon: 'leaf-outline',
-    tint: fromCategory?.tint ?? '#E7F8F0',
-    ink: fromCategory?.ink ?? '#1F9D6A',
+    tint: fromCategory?.tint ?? '#F8EAF1',
+    ink: fromCategory?.ink ?? '#8A0F4D',
   };
 }
 
 /** Map website tool slug to an existing mobile route when a runner exists. */
+/**
+ * Mood, journal and gratitude use the account-backed runners (POST /api/v1/my/*).
+ * Every other slug opens /tools/{slug}, which renders the native BMI/BMR calculator
+ * or the website hand-off screen for tools without a mobile runner yet.
+ */
 export function toolHref(tool: ApiTool): Href | null {
-  if (!tool.mobile_ready) return null;
   switch (tool.slug) {
     case 'daily-mood-check-in':
       return { pathname: '/tools/[id]', params: { id: 'mood-check-in' } };
     case 'digital-journal':
-      return '/tools/journal';
+      return { pathname: '/tools/[id]', params: { id: 'journal' } };
     case 'gratitude-journal':
-      return '/tools/gratitude';
-    case 'bmi-bmr-calculator':
-      return '/tools/bmi';
-    case 'water-intake-tracker':
-      return '/tools/water';
-    case 'career-interest-test':
-      return { pathname: '/tools/[id]', params: { id: tool.slug } };
-    case 'skills-strengths-assessment':
-      return { pathname: '/tools/[id]', params: { id: tool.slug } };
-    case 'weight-journey':
-      return { pathname: '/tools/[id]', params: { id: tool.slug } };
-    case 'calorie-nutrition-tracker':
-      return { pathname: '/tools/[id]', params: { id: tool.slug } };
-    case 'tarot-reflection':
-      return { pathname: '/tools/[id]', params: { id: tool.slug } };
+      return { pathname: '/tools/[id]', params: { id: 'gratitude' } };
     default:
       return { pathname: '/tools/[id]', params: { id: tool.slug } };
   }
@@ -98,8 +88,8 @@ export function expertInitials(name: string): string {
 }
 
 export function expertTint(id: number): string {
-  const palette = ['#E7F8F0', '#F1ECFF', '#E8F1FF', '#FFF0E4', '#FDECEE', '#E7F6FB'];
-  return palette[id % palette.length] ?? '#E7F8F0';
+  const palette = ['#F8EAF1', '#F6EEF9', '#FFF1F6', '#F7EBDD', '#FCE8F1', '#FFF1F6'];
+  return palette[id % palette.length] ?? '#F8EAF1';
 }
 
 export function mapExpertCard(expert: ApiExpert) {

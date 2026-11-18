@@ -1,4 +1,4 @@
-import { apiClient } from '@/services/api/client';
+import { apiClient, apiRequest, OTP_REQUEST_TIMEOUT_MS } from '@/services/api/client';
 import { clearAuthToken, setAuthToken } from '@/services/api/tokenStorage';
 import type { ApiResult } from '@/services/api/types';
 import { Platform } from 'react-native';
@@ -157,12 +157,14 @@ export async function requestPasswordReset(email: string): Promise<
   | { ok: true; message: string }
   | { ok: false; message: string }
 > {
-  const result = await apiClient.post<AuthStatusResponse>(
-    '/auth/forgot-password',
-    { email: email.trim().toLowerCase() },
-    false,
-    'v1',
-  );
+  const result = await apiRequest<AuthStatusResponse>({
+    method: 'POST',
+    path: '/auth/forgot-password',
+    body: { email: email.trim().toLowerCase() },
+    auth: false,
+    mode: 'v1',
+    timeoutMs: OTP_REQUEST_TIMEOUT_MS,
+  });
   if (!result.ok) {
     return { ok: false, message: messageFromResult(result) };
   }
@@ -198,12 +200,14 @@ export async function sendRegistrationOtp(email: string): Promise<
   | { ok: true; message: string }
   | { ok: false; message: string }
 > {
-  const result = await apiClient.post<AuthStatusResponse>(
-    '/auth/register/send-otp',
-    { email: email.trim().toLowerCase() },
-    false,
-    'v1',
-  );
+  const result = await apiRequest<AuthStatusResponse>({
+    method: 'POST',
+    path: '/auth/register/send-otp',
+    body: { email: email.trim().toLowerCase() },
+    auth: false,
+    mode: 'v1',
+    timeoutMs: OTP_REQUEST_TIMEOUT_MS,
+  });
   if (!result.ok) {
     return { ok: false, message: messageFromResult(result) };
   }

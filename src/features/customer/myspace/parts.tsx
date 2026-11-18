@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     gap: 12,
     ...shadows.sm,
   },
-  cardLavender: { backgroundColor: customer.lavender, borderColor: '#E2DCF1' },
+  cardLavender: { backgroundColor: customer.lavender, borderColor: '#F0D4E2' },
   cardMint: { backgroundColor: customer.mint, borderColor: customer.mintDeep },
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
   cardHeadText: { flex: 1, gap: 5 },

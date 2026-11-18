@@ -25,8 +25,8 @@ import {
 const TONE_BG = {
   green: colors.brand.eucalyptusSoft,
   lavender: colors.brand.lavenderSoft,
-  peach: '#F8EFE3',
-  blue: '#E8EEF8',
+  peach: '#F7EBDD',
+  blue: '#FFF1F6',
 } as const;
 
 const TONE_FG = {

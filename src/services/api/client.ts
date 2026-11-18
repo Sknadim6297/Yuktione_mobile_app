@@ -10,6 +10,9 @@ import type { ApiErrorBody, ApiResult, RequestOptions } from '@/services/api/typ
 /** Fail fast with a clear message instead of hanging when the server is unreachable. */
 const REQUEST_TIMEOUT_MS = 15_000;
 
+/** The server sends the OTP email synchronously (SMTP can take 15s+), so allow more time. */
+export const OTP_REQUEST_TIMEOUT_MS = 90_000;
+
 export class ApiClientError extends Error {
   readonly status: number;
   readonly body: ApiErrorBody;
@@ -93,7 +96,7 @@ export async function apiRequest<T>(
   const timeoutId = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, REQUEST_TIMEOUT_MS);
+  }, options.timeoutMs ?? REQUEST_TIMEOUT_MS);
   const onExternalAbort = () => controller.abort();
   if (options.signal) {
     if (options.signal.aborted) {

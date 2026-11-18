@@ -5,8 +5,9 @@ type ShadowToken = Pick<
   'shadowColor' | 'shadowOffset' | 'shadowOpacity' | 'shadowRadius' | 'elevation'
 >;
 
-const softShadow = (elevation: number, opacity: number): ShadowToken => ({
-  shadowColor: '#142B4D',
+/** Website: --yk-shadow-sm 0 8px 22px rgba(31,31,31,.06); hover rgba(138,15,77,.12). */
+const softShadow = (elevation: number, opacity: number, color = '#1F1F1F'): ShadowToken => ({
+  shadowColor: color,
   shadowOffset: { width: 0, height: Math.max(1, Math.floor(elevation / 2)) },
   shadowOpacity: opacity,
   shadowRadius: elevation,
@@ -22,9 +23,11 @@ export const shadows = {
     shadowRadius: 0,
     elevation: 0,
   } satisfies ShadowToken,
-  sm: softShadow(3, 0.06),
-  md: softShadow(6, 0.08),
-  lg: softShadow(10, 0.1),
+  sm: softShadow(4, 0.06),
+  md: softShadow(8, 0.08),
+  lg: softShadow(14, 0.1),
+  /** Plum-tinted lift for primary CTAs and featured cards. */
+  brand: softShadow(12, 0.22, '#5C1035'),
 } as const;
 
 export type Shadows = typeof shadows;

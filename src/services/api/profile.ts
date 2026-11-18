@@ -41,7 +41,10 @@ export async function fetchProfile(): Promise<
 
 export async function updateProfile(
   input: ProfileUpdateInput,
-): Promise<{ ok: true; user: ApiUser; message: string } | { ok: false; message: string }> {
+): Promise<
+  | { ok: true; user: ApiUser; message: string }
+  | { ok: false; message: string; status: number; errors?: Record<string, string[]> }
+> {
   const result = await apiClient.put<{ status: string; message?: string; user: ApiUser }>(
     '/profile',
     input,
@@ -49,7 +52,12 @@ export async function updateProfile(
     'v1',
   );
   if (!result.ok) {
-    return { ok: false, message: messageFrom(result) };
+    return {
+      ok: false,
+      message: messageFrom(result),
+      status: result.status,
+      errors: result.error.errors,
+    };
   }
   return {
     ok: true,

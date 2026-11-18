@@ -11,7 +11,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { art } from '@/features/customer/content';
+import { BRAND_ASSETS } from '@/constants/brandAssets';
 import { customer } from '@/theme';
 
 const NATIVE_DRIVER = Platform.OS !== 'web';
@@ -101,7 +101,7 @@ function FadeInImage({
 export function BrandPlaceholder() {
   return (
     <View style={styles.placeholder} accessible={false}>
-      <Image source={art.lotus} style={styles.lotus} resizeMode="contain" />
+      <Image source={BRAND_ASSETS.logo} style={styles.lotus} resizeMode="contain" />
     </View>
   );
 }
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   frame: { overflow: 'hidden' },
   fill: { ...StyleSheet.absoluteFill },
   placeholder: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
-  lotus: { width: '34%', height: '34%', opacity: 0.28 },
+  lotus: { width: '56%', height: '30%', opacity: 0.35 },
   skeleton: { backgroundColor: customer.line, borderRadius: 12 },
   pressed: { opacity: 0.92, transform: [{ scale: 0.985 }] },
 });

@@ -40,7 +40,7 @@ const toneStyles = StyleSheet.create({
     backgroundColor: colors.brand.eucalyptusSoft,
   },
   warning: {
-    backgroundColor: '#F7EBD8',
+    backgroundColor: '#F7EBDD',
   },
   pending: {
     backgroundColor: colors.brand.lavenderSoft,

@@ -1,13 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -24,7 +21,6 @@ import {
   toIsoDate,
   toolById,
 } from '@/features/customer/content';
-import { openLiveTool, toolVisual } from '@/features/customer/liveCatalog';
 import { useAccountScope } from '@/features/customer/myspace/accountData';
 import {
   AccountGratitude,
@@ -46,154 +42,13 @@ import {
   TealButton,
   TrendChart,
 } from '@/features/customer/ui';
-import { isApiConfigured } from '@/constants/config';
 import { FRONTEND_ONLY } from '@/constants/frontendOnly';
-import {
-  fetchToolCategories,
-  fetchTools,
-  type ApiTool,
-} from '@/services/api/catalog';
+import { ToolHeroCard } from '@/features/tools/ToolDetailParts';
+import { TOOLS_LIVE, useToolsCatalogue } from '@/features/tools/toolsCatalogue';
 import { customer, customerFonts } from '@/theme';
 
 function openTool(id: string): void {
   router.push({ pathname: '/tools/[id]', params: { id } });
-}
-
-function LiveToolTile({ tool, width }: { tool: ApiTool; width?: number }) {
-  const visual = toolVisual(tool);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() => openLiveTool(tool)}
-      style={[styles.tile, width ? { width } : styles.tileFlex]}
-    >
-      <View style={[styles.tileIcon, { backgroundColor: visual.tint }]}>
-        <Ionicons name={visual.icon} size={22} color={visual.ink} />
-      </View>
-      <Text style={styles.tileTitle}>{tool.name}</Text>
-      <Text style={styles.tileBlurb} numberOfLines={2}>
-        {tool.description}
-      </Text>
-      <View
-        style={[
-          styles.priceBadge,
-          tool.access_type === 'paid' && styles.priceBadgePaid,
-        ]}
-      >
-        <Text
-          style={[styles.price, tool.access_type === 'paid' && styles.pricePaid]}
-        >
-          {tool.access_type === 'free' ? 'Free' : 'Paid'}
-          {!tool.mobile_ready ? ' · Website' : ''}
-        </Text>
-      </View>
-    </Pressable>
-  );
-}
-
-export function AllToolsScreen() {
-  const [category, setCategory] = useState<string>('all');
-  const [query, setQuery] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
-  const liveEnabled = !FRONTEND_ONLY && isApiConfigured();
-
-  const categoriesQuery = useQuery({
-    queryKey: ['v1', 'tool-categories'],
-    queryFn: async () => {
-      const result = await fetchToolCategories();
-      if (!result.ok) throw new Error(result.message);
-      return result.categories;
-    },
-    enabled: liveEnabled,
-  });
-
-  const toolsQuery = useQuery({
-    queryKey: ['v1', 'tools', category === 'all' ? null : category, query],
-    queryFn: async () => {
-      const result = await fetchTools({
-        category: category === 'all' ? undefined : category,
-        q: query.trim() || undefined,
-      });
-      if (!result.ok) throw new Error(result.message);
-      return result.tools;
-    },
-    enabled: liveEnabled,
-  });
-
-  const categories = categoriesQuery.data ?? [];
-  const tools = toolsQuery.data ?? [];
-
-  return (
-    <CustomerPage
-      nav="discover"
-      active="tools"
-      onBack={() => router.back()}
-      right={
-        <>
-          <IconButton
-            icon="search"
-            label="Search tools"
-            onPress={() => setSearchOpen((value) => !value)}
-          />
-          <IconButton icon="bookmark-outline" label="Saved tools" onPress={() => router.push('/my-tools')} />
-        </>
-      }
-    >
-      <View style={styles.heroRow}>
-        <View style={{ flex: 1 }}>
-          <Heading>All Tools</Heading>
-          <Subtitle>A complete collection of tools for your mental, emotional and personal wellbeing.</Subtitle>
-        </View>
-        <Image source={art.lotus} style={styles.lotus} accessibilityElementsHidden />
-      </View>
-      {searchOpen ? (
-        <SearchField value={query} onChangeText={setQuery} placeholder="Search tools" />
-      ) : null}
-      <ChipRow
-        options={[
-          { id: 'all', label: `All (${toolsQuery.data?.length ?? 0})` },
-          ...categories.map((item) => ({ id: item.slug, label: item.name })),
-        ]}
-        value={category}
-        onChange={setCategory}
-      />
-      {toolsQuery.isLoading || categoriesQuery.isLoading ? (
-        <ActivityIndicator color={customer.teal} />
-      ) : null}
-      {toolsQuery.isError ? (
-        <Text style={styles.empty}>{toolsQuery.error.message}</Text>
-      ) : null}
-      {tools.length === 0 && !toolsQuery.isLoading ? (
-        <Text style={styles.empty}>No tools match that search.</Text>
-      ) : null}
-      {categories.map((group) => {
-        const items = tools.filter((tool) => tool.category?.slug === group.slug);
-        if (items.length === 0) return null;
-        return (
-          <View key={group.slug} style={styles.block}>
-            <SectionTitle title={`${group.name} (${items.length})`} />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-              {items.map((tool) => (
-                <LiveToolTile key={tool.slug} tool={tool} width={132} />
-              ))}
-            </ScrollView>
-          </View>
-        );
-      })}
-      {category === 'all' && tools.some((tool) => !tool.category) ? (
-        <View style={styles.block}>
-          <SectionTitle title="Other" />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-            {tools
-              .filter((tool) => !tool.category)
-              .map((tool) => (
-                <LiveToolTile key={tool.slug} tool={tool} width={132} />
-              ))}
-          </ScrollView>
-        </View>
-      ) : null}
-    </CustomerPage>
-  );
 }
 
 export function CategoryScreen({ slug }: { slug: string }) {
@@ -330,9 +185,9 @@ export function MoodResultScreen() {
       </View>
       <SectionTitle title="Personalised Suggestions" />
       {[
-        ['meditation', 'Try a 5-minute Meditation', 'Keep your calm and focus even stronger.', 'flower-outline', '#F1ECFF', '#6E5BD6'],
-        ['gratitude', 'Practice Gratitude', "Write 3 things you're thankful for today.", 'leaf-outline', '#E7F8F0', '#1F9D6A'],
-        ['better-sleep', 'Maintain a Good Sleep Routine', 'Aim for 7–8 hours of quality sleep tonight.', 'moon-outline', '#F1ECFF', '#6E5BD6'],
+        ['meditation', 'Try a 5-minute Meditation', 'Keep your calm and focus even stronger.', 'flower-outline', '#F6EEF9', '#7B3F96'],
+        ['gratitude', 'Practice Gratitude', "Write 3 things you're thankful for today.", 'leaf-outline', '#F8EAF1', '#8A0F4D'],
+        ['better-sleep', 'Maintain a Good Sleep Routine', 'Aim for 7–8 hours of quality sleep tonight.', 'moon-outline', '#F6EEF9', '#7B3F96'],
       ].map(([id, title, body, icon, tint, ink]) => (
         <Pressable key={id} style={styles.listRow} onPress={() => openTool(id!)}>
           <View style={[styles.listIcon, { backgroundColor: tint }]}>
@@ -352,10 +207,21 @@ export function MoodResultScreen() {
 /** These save through the website's recorders; offline preview keeps the device-only runners. */
 const ACCOUNT_TOOL_IDS = new Set(['mood-check-in', 'journal', 'gratitude']);
 
+const ACCOUNT_TOOL_SLUGS: Record<string, string> = {
+  'mood-check-in': 'daily-mood-check-in',
+  journal: 'digital-journal',
+  gratitude: 'gratitude-journal',
+};
+
 export function ToolRunnerScreen({ id }: { id: string }) {
   const tool = toolById(id);
   const state = useCustomerState();
   const accountLive = useAccountScope().enabled;
+  const websiteSlug = ACCOUNT_TOOL_SLUGS[id];
+  const websiteTool = useToolsCatalogue({
+    select: (data) => data.tools.find((item) => item.slug === websiteSlug) ?? null,
+    enabled: TOOLS_LIVE && Boolean(websiteSlug),
+  }).data;
   const [text, setText] = useState('');
   const [thanks, setThanks] = useState(['', '', '']);
   const [height, setHeight] = useState('');
@@ -403,14 +269,20 @@ export function ToolRunnerScreen({ id }: { id: string }) {
         />
       }
     >
-      <View style={[styles.tileIcon, { backgroundColor: tool.tint, width: 56, height: 56 }]}>
-        <Ionicons name={tool.icon} size={26} color={tool.ink} />
-      </View>
-      <Heading>{tool.name}</Heading>
-      <Subtitle>{tool.blurb}</Subtitle>
-      <Text style={[styles.price, tool.price === 'paid' && styles.pricePaid]}>
-        {tool.price === 'free' ? 'Free' : 'Paid · payment API not connected'}
-      </Text>
+      {accountTool && websiteTool ? (
+        <ToolHeroCard tool={websiteTool} />
+      ) : (
+        <>
+          <View style={[styles.tileIcon, { backgroundColor: tool.tint, width: 56, height: 56 }]}>
+            <Ionicons name={tool.icon} size={26} color={tool.ink} />
+          </View>
+          <Heading>{tool.name}</Heading>
+          <Subtitle>{tool.blurb}</Subtitle>
+          <Text style={[styles.price, tool.price === 'paid' && styles.pricePaid]}>
+            {tool.price === 'free' ? 'Free' : 'Paid · payment API not connected'}
+          </Text>
+        </>
+      )}
 
       {accountTool ? (
         accountLive ? (
@@ -539,7 +411,9 @@ export function ToolRunnerScreen({ id }: { id: string }) {
         </View>
       ) : null}
 
-      <Text style={styles.muted}>Reference price label only. {tool.price === 'paid' ? formatInr(199) : 'No charge.'}</Text>
+      {accountTool ? null : (
+        <Text style={styles.muted}>Reference price label only. {tool.price === 'paid' ? formatInr(199) : 'No charge.'}</Text>
+      )}
     </CustomerPage>
   );
 }
@@ -619,7 +493,7 @@ export function MyToolsScreen() {
 
 const styles = StyleSheet.create({
   heroRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  lotus: { width: 72, height: 72 },
+  lotus: { width: 72, height: 72, borderRadius: 18 },
   heroPerson: { width: 92, height: 92, borderRadius: 18 },
   block: { gap: 10 },
   row: { gap: 10, paddingRight: 8 },
@@ -638,12 +512,12 @@ const styles = StyleSheet.create({
   tileBlurb: { fontFamily: customerFonts.regular, fontSize: 11, color: customer.body, flex: 1 },
   priceBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#E6F8EF',
+    backgroundColor: '#F8EAF1',
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  priceBadgePaid: { backgroundColor: '#FDECEE' },
+  priceBadgePaid: { backgroundColor: '#FCE8F1' },
   price: { fontFamily: customerFonts.bold, fontSize: 12, color: customer.free },
   pricePaid: { color: customer.paid },
   empty: { fontFamily: customerFonts.regular, color: customer.muted, fontSize: 14 },
@@ -673,7 +547,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#F3EEFF',
+    backgroundColor: '#F6EEF9',
     borderRadius: 18,
     padding: 10,
   },
@@ -739,7 +613,7 @@ const styles = StyleSheet.create({
     fontFamily: customerFonts.bold,
     fontSize: 12,
   },
-  noteCard: { backgroundColor: '#F3FBFA', borderRadius: 16, padding: 14, gap: 6 },
+  noteCard: { backgroundColor: '#FFF8FB', borderRadius: 16, padding: 14, gap: 6 },
   stack: { gap: 10 },
   area: {
     minHeight: 120,

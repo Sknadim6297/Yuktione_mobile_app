@@ -13,10 +13,9 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#F7F4EF",
+        "backgroundColor": "#FFF8FB",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundImage": "./assets/android-icon-background.png"
       },
       "package": "com.yuktione.app",
       "predictiveBackGestureEnabled": false
@@ -32,8 +31,8 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F7F4EF",
-          "image": "./assets/brand/yuktione-logo.png",
+          "backgroundColor": "#FFF8FB",
+          "image": "./assets/website/yuktione-logo.png",
           "imageWidth": 200
         }
       ],

@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FadeInView, PressableScale } from '@/components/motion';
 import { MOOD_OPTIONS } from '@/features/home/moodOptions';
+import { BRAND_ASSETS } from '@/constants/brandAssets';
 import {
   colors,
   fontFamilies,
@@ -23,7 +24,7 @@ import {
   spacing,
 } from '@/theme';
 
-const BRAND_LOGO = require('../../../assets/brand/yuktione-logo-light.png');
+const BRAND_LOGO = BRAND_ASSETS.logo;
 
 const QUICK_ACTIONS = [
   {

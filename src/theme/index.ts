@@ -1,3 +1,4 @@
+import { brand, brandGradients } from './brand';
 import { colors } from './colors';
 import { customer, customerFonts } from './customer';
 import { motion } from './motion';
@@ -6,6 +7,8 @@ import { shadows } from './shadows';
 import { fontFamilies, typography } from './typography';
 
 export const theme = {
+  brand,
+  brandGradients,
   colors,
   customer,
   customerFonts,
@@ -20,6 +23,8 @@ export const theme = {
 export type Theme = typeof theme;
 
 export {
+  brand,
+  brandGradients,
   colors,
   customer,
   customerFonts,

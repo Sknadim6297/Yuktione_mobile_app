@@ -1,4 +1,4 @@
-import { Alert, Linking } from 'react-native';
+import { Alert, Linking, Platform } from 'react-native';
 
 import {
   APP_CONFIG,
@@ -48,6 +48,12 @@ export async function openWebsitePath(
 
   if (!confirm) {
     return proceed();
+  }
+
+  // react-native-web's Alert.alert is a no-op, so buttons would never resolve.
+  if (Platform.OS === 'web') {
+    const ok = globalThis.confirm?.(`${options.title ?? 'Open YuktiOne website'}\n\n${url}`) ?? true;
+    return ok ? proceed() : false;
   }
 
   return new Promise((resolve) => {

@@ -1,6 +1,6 @@
-import { AllToolsScreen } from '@/features/customer/DiscoverScreens';
+import { ToolsScreen } from '@/features/tools/ToolsScreen';
 
-/** Reference screen 6 — All Tools. */
+/** Website /tools catalogue. */
 export default function ToolsTabRoute() {
-  return <AllToolsScreen />;
+  return <ToolsScreen />;
 }

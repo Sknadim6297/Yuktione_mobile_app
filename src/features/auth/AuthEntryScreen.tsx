@@ -31,6 +31,7 @@ import { setOtpFlowContext } from '@/features/auth/otp/otpContextStore';
 import { setSelectedAuthRole } from '@/features/auth/roleStore';
 import type { AuthRole } from '@/features/auth/types';
 import { validateAuthIdentifier } from '@/features/auth/validation';
+import { BRAND_ASSETS, PROGRAMME_IMAGES } from '@/constants/brandAssets';
 import {
   colors,
   fontFamilies,
@@ -41,9 +42,9 @@ import {
 } from '@/theme';
 
 /** Official website logo (public_html/frontend/assets/Yuktione_logo.png). */
-const BRAND_LOGO = require('../../../assets/brand/yuktione-logo-light.png');
-const TOP_ART = require('../../../assets/illustrations/auth-top-botanicals.jpg');
-const BOTTOM_ART = require('../../../assets/illustrations/auth-bottom-landscape.jpg');
+const BRAND_LOGO = BRAND_ASSETS.logo;
+const TOP_ART = BRAND_ASSETS.registerHero;
+const BOTTOM_ART = PROGRAMME_IMAGES.calm;
 
 const AnimatedField = Animated.createAnimatedComponent(View);
 

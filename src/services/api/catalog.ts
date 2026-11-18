@@ -29,6 +29,23 @@ export type ApiTool = {
   mobile_message?: string | null;
   category?: { id: number; name: string; slug: string } | null;
   route_name?: string;
+  /** False when the website /tools catalogue hides this tool (e.g. private routes). */
+  in_website_catalogue?: boolean;
+  /** Absolute website URL of the tool (may use the server's APP_URL host). */
+  web_url?: string | null;
+  /** Copy the website tool card shows. */
+  card_description?: string;
+  /** Description the website catalogue searches (name + this + category label). */
+  catalogue_description?: string | null;
+  /** Website catalogue category (ExploreCatalog::CATEGORIES), not the DB tool category. */
+  explore_category?: { slug: string; label: string } | null;
+};
+
+/** Category chip on the website /tools page. */
+export type ApiExploreCategory = {
+  slug: string;
+  label: string;
+  icon?: string | null;
 };
 
 export type ApiExpert = {
@@ -101,18 +118,25 @@ export async function fetchToolCategories(): Promise<
 export async function fetchTools(params?: {
   q?: string;
   category?: string;
-}): Promise<{ ok: true; tools: ApiTool[] } | { ok: false; message: string }> {
+}): Promise<
+  | { ok: true; tools: ApiTool[]; exploreCategories: ApiExploreCategory[] }
+  | { ok: false; message: string; status: number }
+> {
   const search = new URLSearchParams();
   if (params?.q) search.set('q', params.q);
   if (params?.category) search.set('category', params.category);
   const qs = search.toString();
-  const result = await apiClient.get<{ status: string; tools: ApiTool[] }>(
-    `/tools${qs ? `?${qs}` : ''}`,
-    false,
-    'v1',
-  );
-  if (!result.ok) return { ok: false, message: messageFrom(result) };
-  return { ok: true, tools: result.data.tools ?? [] };
+  const result = await apiClient.get<{
+    status: string;
+    tools: ApiTool[];
+    explore_categories?: ApiExploreCategory[];
+  }>(`/tools${qs ? `?${qs}` : ''}`, false, 'v1');
+  if (!result.ok) return { ok: false, message: messageFrom(result), status: result.status };
+  return {
+    ok: true,
+    tools: result.data.tools ?? [],
+    exploreCategories: result.data.explore_categories ?? [],
+  };
 }
 
 export async function fetchTool(

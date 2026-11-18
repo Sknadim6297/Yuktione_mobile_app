@@ -1,18 +1,20 @@
 import { TextStyle } from 'react-native';
 
 /**
- * Typography scale. System fonts for Phase 1;
- * custom brand fonts can be loaded via expo-font later.
+ * Typography matches the website: DM Sans for headings and body
+ * (public_html/resources/css/tazen.css → --font-display: "DM Sans").
+ * Weights are carried by the font file so Android does not synthesise bold.
  */
 export const fontFamilies = {
-  /** Loaded via expo-font on splash and future branded screens. */
-  brandSerif: 'LibreBaskerville_700Bold' as TextStyle['fontFamily'],
-  brandSerifRegular: 'LibreBaskerville_400Regular' as TextStyle['fontFamily'],
+  /** Display / heading face (website h1 weight 700–750). */
+  brandSerif: 'DMSans_700Bold' as TextStyle['fontFamily'],
+  brandSerifRegular: 'DMSans_500Medium' as TextStyle['fontFamily'],
   bodySans: 'DMSans_400Regular' as TextStyle['fontFamily'],
-  regular: undefined as TextStyle['fontFamily'],
-  medium: undefined as TextStyle['fontFamily'],
-  semibold: undefined as TextStyle['fontFamily'],
-  bold: undefined as TextStyle['fontFamily'],
+  regular: 'DMSans_400Regular' as TextStyle['fontFamily'],
+  medium: 'DMSans_500Medium' as TextStyle['fontFamily'],
+  semibold: 'DMSans_600SemiBold' as TextStyle['fontFamily'],
+  bold: 'DMSans_700Bold' as TextStyle['fontFamily'],
+  extraBold: 'DMSans_800ExtraBold' as TextStyle['fontFamily'],
 } as const;
 
 export const fontSizes = {
@@ -34,53 +36,54 @@ export const lineHeights = {
 
 export const typography = {
   display: {
+    fontFamily: fontFamilies.bold,
     fontSize: fontSizes.display,
-    fontWeight: '700' as const,
     lineHeight: Math.round(fontSizes.display * lineHeights.tight),
-    letterSpacing: -0.5,
+    letterSpacing: -0.8,
   },
   h1: {
+    fontFamily: fontFamilies.bold,
     fontSize: fontSizes.xxl,
-    fontWeight: '700' as const,
     lineHeight: Math.round(fontSizes.xxl * lineHeights.tight),
-    letterSpacing: -0.3,
+    letterSpacing: -0.6,
   },
   h2: {
+    fontFamily: fontFamilies.bold,
     fontSize: fontSizes.xl,
-    fontWeight: '600' as const,
     lineHeight: Math.round(fontSizes.xl * lineHeights.snug),
+    letterSpacing: -0.3,
   },
   h3: {
+    fontFamily: fontFamilies.semibold,
     fontSize: fontSizes.lg,
-    fontWeight: '600' as const,
     lineHeight: Math.round(fontSizes.lg * lineHeights.snug),
   },
   body: {
+    fontFamily: fontFamilies.regular,
     fontSize: fontSizes.md,
-    fontWeight: '400' as const,
     lineHeight: Math.round(fontSizes.md * lineHeights.normal),
   },
   bodyStrong: {
+    fontFamily: fontFamilies.semibold,
     fontSize: fontSizes.md,
-    fontWeight: '600' as const,
     lineHeight: Math.round(fontSizes.md * lineHeights.normal),
   },
   caption: {
+    fontFamily: fontFamilies.regular,
     fontSize: fontSizes.sm,
-    fontWeight: '400' as const,
     lineHeight: Math.round(fontSizes.sm * lineHeights.normal),
   },
   label: {
+    fontFamily: fontFamilies.semibold,
     fontSize: fontSizes.sm,
-    fontWeight: '600' as const,
     lineHeight: Math.round(fontSizes.sm * lineHeights.snug),
     letterSpacing: 0.2,
   },
   button: {
+    fontFamily: fontFamilies.bold,
     fontSize: fontSizes.md,
-    fontWeight: '600' as const,
     lineHeight: Math.round(fontSizes.md * lineHeights.tight),
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
 } as const;
 

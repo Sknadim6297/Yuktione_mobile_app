@@ -22,6 +22,13 @@ export const WEBSITE_PATHS = {
   customerBilling: '/customer/billing',
   customerReferEarn: '/customer/yukti-points',
   customerSupportChat: '/user/admin-chat',
+  customerUpcomingAppointments: '/user/upcoming-appointment',
+  customerAllAppointments: '/user/all-appointment',
+  customerAdditionalServices: '/user/additional-services',
+  /** Dashboard "My Saved Tools" panel (pfm_calculations + ps_tool_results). */
+  customerSavedTools: '/user/dashboard#my-saved-tools',
+  financeTools: '/tools/pfm',
+  wellbeingTools: '/tools/ps',
   /** Psychology tools that save to the customer's account (mood_checkins, digital_journals, gratitude_journals). */
   moodCheckin: '/tools/psychology/mood',
   moodHistory: '/tools/psychology/mood/history',

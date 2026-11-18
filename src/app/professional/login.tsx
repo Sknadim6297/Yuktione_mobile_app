@@ -1,15 +1,14 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text } from 'react-native';
 
-import { AppHeader } from '@/components/common/AppHeader';
+import { AuthShell, FormInput, PrimaryButton } from '@/components/brand';
 import { InfoBanner } from '@/components/common/InfoBanner';
-import { Button, Input, Screen } from '@/components/ui';
 import {
   fieldErrorsFromZod,
   loginSchema,
 } from '@/features/professional/setup/schema';
-import { colors, spacing, typography } from '@/theme';
+import { brand, customerFonts } from '@/theme';
 
 export default function ProfessionalLoginScreen() {
   const [email, setEmail] = useState('');
@@ -31,69 +30,58 @@ export default function ProfessionalLoginScreen() {
   };
 
   return (
-    <Screen scroll keyboardAware contentStyle={styles.content}>
-      <AppHeader title="Professional login" subtitle="Welcome back" />
-
+    <AuthShell
+      headline="Welcome back to your"
+      accent="practice."
+      points={['Manage sessions & clients', 'Track earnings']}
+      badge="PROFESSIONAL"
+      title="Professional login"
+      lead="Sign in to continue"
+      onBack={() => (router.canGoBack() ? router.back() : router.replace('/professional/join'))}
+      footer={
+        <>
+          <Pressable onPress={() => router.push('/professional/register')} style={styles.linkWrap}>
+            <Text style={styles.link}>New here? Apply to join</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push('/professional/status/pending')}>
+            <Text style={styles.linkMuted}>View pending status screen</Text>
+          </Pressable>
+        </>
+      }
+    >
       <InfoBanner
         tone="warning"
         title="API not connected"
         message="Validation matches website rules (email + password min 6). Authentication will not succeed until mobile APIs exist."
       />
-
-      <View style={styles.form}>
-        <Input
-          label="Email"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          autoComplete="email"
-          value={email}
-          onChangeText={setEmail}
-          error={errors.email}
-          placeholder="you@example.com"
-        />
-        <Input
-          label="Password"
-          secureTextEntry
-          autoComplete="password"
-          value={password}
-          onChangeText={setPassword}
-          error={errors.password}
-          placeholder="Minimum 6 characters"
-        />
-      </View>
-
-      <Button title="Sign in" onPress={onSubmit} />
-
-      <View style={styles.links}>
-        <Pressable onPress={() => router.push('/professional/register')}>
-          <Text style={styles.link}>New here? Apply to join</Text>
-        </Pressable>
-        <Pressable onPress={() => router.push('/professional/status/pending')}>
-          <Text style={styles.linkMuted}>View pending status screen</Text>
-        </Pressable>
-      </View>
-    </Screen>
+      <FormInput
+        label="Email"
+        icon="mail-outline"
+        autoCapitalize="none"
+        keyboardType="email-address"
+        autoComplete="email"
+        value={email}
+        onChangeText={setEmail}
+        error={errors.email}
+        placeholder="you@example.com"
+      />
+      <FormInput
+        label="Password"
+        icon="lock-closed-outline"
+        password
+        autoComplete="password"
+        value={password}
+        onChangeText={setPassword}
+        error={errors.password}
+        placeholder="Minimum 6 characters"
+      />
+      <PrimaryButton label="Sign in" onPress={onSubmit} />
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    gap: spacing.xl,
-  },
-  form: {
-    gap: spacing.lg,
-  },
-  links: {
-    gap: spacing.md,
-    alignItems: 'center',
-    paddingBottom: spacing.xxl,
-  },
-  link: {
-    ...typography.bodyStrong,
-    color: colors.brand.eucalyptus,
-  },
-  linkMuted: {
-    ...typography.caption,
-    color: colors.text.muted,
-  },
+  linkWrap: { paddingVertical: 8 },
+  link: { fontFamily: customerFonts.bold, fontSize: 14, color: brand.plum },
+  linkMuted: { fontFamily: customerFonts.regular, fontSize: 12.5, color: brand.grey, marginTop: 4 },
 });

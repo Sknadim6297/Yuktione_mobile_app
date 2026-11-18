@@ -32,7 +32,8 @@ import {
 import { isApiConfigured } from '@/constants/config';
 import { FRONTEND_ONLY } from '@/constants/frontendOnly';
 import { fetchProgrammeEvents } from '@/services/api/catalog';
-import { customer, customerFonts } from '@/theme';
+import { BrandGradient } from '@/components/brand';
+import { brand, customer, customerFonts } from '@/theme';
 
 function ProgrammeRow({ programme, saved }: { programme: Programme; saved: boolean }) {
   return (
@@ -135,6 +136,7 @@ export function ProgrammesScreen() {
           <SectionTitle title="Featured Programmes" action="See All →" onAction={() => setFilter('all')} />
           <Pressable onPress={() => router.push({ pathname: '/programmes/[id]', params: { id: featured.id } })}>
             <Image source={featured.image} style={styles.hero} />
+            <BrandGradient colors={['rgba(90, 9, 50, 0.1)', 'rgba(90, 9, 50, 0.9)']} angle={180} style={styles.heroScrim} />
             <View style={styles.heroCopy}>
               {featured.popular ? <Text style={styles.badge}>Most Popular</Text> : null}
               <Text style={styles.heroTitle}>{featured.title}</Text>
@@ -367,13 +369,14 @@ const styles = StyleSheet.create({
   side: { alignItems: 'flex-end', gap: 8 },
   price: { fontFamily: customerFonts.bold, color: customer.teal, fontSize: 16 },
   hero: { width: '100%', height: 180, borderRadius: 18 },
+  heroScrim: { position: 'absolute', top: 0, left: 0, right: 0, height: 180, borderRadius: 18, overflow: 'hidden' },
   heroCopy: { position: 'absolute', left: 16, right: 16, bottom: 28, gap: 4 },
   heroTitle: { fontFamily: customerFonts.bold, fontSize: 22, color: customer.white },
   heroBody: { fontFamily: customerFonts.regular, fontSize: 13, color: customer.white },
   heroMeta: { fontFamily: customerFonts.medium, fontSize: 12, color: customer.white },
   badge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#F6C445',
+    backgroundColor: brand.underline,
     color: customer.navy,
     fontFamily: customerFonts.bold,
     fontSize: 11,

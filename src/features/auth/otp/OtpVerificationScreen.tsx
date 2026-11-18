@@ -1,21 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import {
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 
-import { FadeInView, PressableScale } from '@/components/motion';
-import { Button } from '@/components/ui';
+import { AuthShell, PrimaryButton } from '@/components/brand';
+import { PressableScale } from '@/components/motion';
 import { FRONTEND_ONLY } from '@/constants/frontendOnly';
 import { OtpCodeInput } from '@/features/auth/otp/OtpCodeInput';
 import {
@@ -27,26 +15,13 @@ import { requestOtpResend, requestOtpVerify } from '@/features/auth/otp/otpApi';
 import type { OtpFlowContext } from '@/features/auth/otp/types';
 import { useCountdownDeadline } from '@/features/auth/otp/useCountdownDeadline';
 import { getSelectedAuthRole } from '@/features/auth/roleStore';
-import {
-  colors,
-  fontFamilies,
-  motion,
-  radius,
-  spacing,
-} from '@/theme';
-
-const BRAND_LOGO = require('../../../../assets/brand/yuktione-logo-light.png');
-const TOP_ART = require('../../../../assets/illustrations/auth-top-botanicals.jpg');
-const BOTTOM_ART = require('../../../../assets/illustrations/auth-bottom-landscape.jpg');
+import { brand, customerFonts, motion } from '@/theme';
 
 /**
  * Screen 05 — OTP Verification / Enter 6-digit code.
- * Pixel reference: yukti-mobile-app/Screens/Screen_05.png
+ * Rendered on the shared website auth layout (AuthShell).
  */
 export function OtpVerificationScreen() {
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-
   const [context, setContext] = useState<OtpFlowContext | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | undefined>();
@@ -71,7 +46,6 @@ export function OtpVerificationScreen() {
   );
 
   const canContinue = code.length === 6 && !verifying;
-  const bottomArtHeight = Math.min(150, Math.round(width * 0.34));
 
   const handleBack = () => {
     setCode('');
@@ -166,283 +140,109 @@ export function OtpVerificationScreen() {
 
   if (!context) {
     return (
-      <View style={[styles.root, { paddingTop: insets.top }]}>
-        <ScrollView
-          contentContainerStyle={styles.missingWrap}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={styles.heading}>OTP session missing</Text>
-          <Text style={styles.body}>
-            Start from registration with a valid email so role and identifier
-            context can be preserved. OTP codes are never stored in the URL.
-          </Text>
-          <Button title="Back to Login / Sign Up" onPress={() => router.replace('/auth')} />
-        </ScrollView>
-      </View>
+      <AuthShell
+        headline="Let's start"
+        accent="again."
+        badge="VERIFICATION"
+        title="OTP session missing"
+        lead="Start from registration with a valid email so your details can be kept safely. OTP codes are never stored in the link."
+        onBack={() => router.replace('/auth')}
+      >
+        <PrimaryButton label="Back to Sign In / Sign Up" onPress={() => router.replace('/auth')} />
+      </AuthShell>
     );
   }
 
   return (
-    <View style={styles.root}>
-      <Image
-        source={TOP_ART}
-        style={styles.topArt}
-        resizeMode="cover"
-        accessibilityElementsHidden
-        importantForAccessibility="no"
+    <AuthShell
+      headline="One quick check and you're"
+      accent="in."
+      points={['Secure verification', 'Code expires in minutes']}
+      badge="VERIFY EMAIL"
+      title="Enter 6-digit code"
+      lead="We've sent it to"
+      onBack={handleBack}
+      footer={
+        <View style={styles.resendWrap}>
+          {context.codeDispatchConfirmed && countdown.isRunning ? (
+            <Text style={styles.resendText} accessibilityLiveRegion="polite">
+              Resend code in <Text style={styles.resendAccent}>{countdown.formatted}</Text>
+            </Text>
+          ) : (
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Resend code"
+              disabled={verifying}
+              scaleTo={motion.press.in}
+              onPress={() => {
+                void handleResend();
+              }}
+              style={styles.resendHit}
+            >
+              <Text style={styles.resendAction}>Resend code</Text>
+            </PressableScale>
+          )}
+          {!FRONTEND_ONLY && unavailableHint ? (
+            <Text style={styles.hint} accessibilityLiveRegion="polite">
+              {unavailableHint}
+            </Text>
+          ) : null}
+        </View>
+      }
+    >
+      <Text style={styles.email} accessibilityLabel={`Email ${context.email}`}>
+        {context.email}
+      </Text>
+
+      <OtpCodeInput
+        value={code}
+        onChange={(next) => {
+          setCode(next);
+          if (error) {
+            setError(undefined);
+          }
+          if (unavailableHint) {
+            setUnavailableHint(undefined);
+          }
+        }}
+        disabled={verifying}
+        error={error}
+        autoFocus
       />
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
-      >
-        <ScrollView
-          contentContainerStyle={[
-            styles.scroll,
-            {
-              paddingTop: Math.max(insets.top, spacing.md) + spacing.xs,
-              paddingBottom: Math.max(insets.bottom, spacing.md) + bottomArtHeight * 0.35,
-            },
-          ]}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            hitSlop={12}
-            scaleTo={motion.press.in}
-            onPress={handleBack}
-            style={styles.backHit}
-          >
-            <Ionicons name="chevron-back" size={26} color={colors.text.primary} />
-          </PressableScale>
-
-          <FadeInView style={styles.brand}>
-            <Image
-              source={BRAND_LOGO}
-              style={[styles.logo, { width: Math.min(width * 0.58, 220) }]}
-              resizeMode="contain"
-              accessibilityLabel="YuktiOne — Guidance for a brighter you"
-            />
-          </FadeInView>
-
-          <FadeInView delayMs={40} style={styles.copyBlock}>
-            <Text style={styles.heading} accessibilityRole="header">
-              Enter 6-digit code
-            </Text>
-            <Text style={styles.sentLabel}>We&apos;ve sent it to</Text>
-            <Text
-              style={styles.email}
-              accessibilityLabel={`Email ${context.email}`}
-            >
-              {context.email}
-            </Text>
-          </FadeInView>
-
-          <FadeInView delayMs={70} style={styles.otpBlock}>
-            <OtpCodeInput
-              value={code}
-              onChange={(next) => {
-                setCode(next);
-                if (error) {
-                  setError(undefined);
-                }
-                if (unavailableHint) {
-                  setUnavailableHint(undefined);
-                }
-              }}
-              disabled={verifying}
-              error={error}
-              autoFocus
-            />
-          </FadeInView>
-
-          <View style={styles.resendWrap}>
-            {context.codeDispatchConfirmed && countdown.isRunning ? (
-              <Text style={styles.resendText} accessibilityLiveRegion="polite">
-                Resend code in{' '}
-                <Text style={styles.resendAccent}>{countdown.formatted}</Text>
-              </Text>
-            ) : (
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel="Resend code"
-                disabled={verifying}
-                scaleTo={motion.press.in}
-                onPress={() => {
-                  void handleResend();
-                }}
-                style={styles.resendHit}
-              >
-                <Text style={styles.resendAction}>Resend code</Text>
-              </PressableScale>
-            )}
-            {!FRONTEND_ONLY && unavailableHint ? (
-              <Text style={styles.hint} accessibilityLiveRegion="polite">
-                {unavailableHint}
-              </Text>
-            ) : null}
-          </View>
-
-          <View style={styles.continueWrap}>
-            <Button
-              title="Continue"
-              loading={verifying}
-              disabled={!canContinue}
-              onPress={() => {
-                void handleVerify();
-              }}
-              style={styles.continueButton}
-            />
-          </View>
-
-          <View style={[styles.bottomArtWrap, { width, marginLeft: -spacing.xxl }]}>
-            <Image
-              source={BOTTOM_ART}
-              style={[styles.bottomArt, { width, height: bottomArtHeight }]}
-              resizeMode="cover"
-              accessibilityElementsHidden
-              importantForAccessibility="no"
-            />
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+      <PrimaryButton
+        label="Continue"
+        loading={verifying}
+        disabled={!canContinue}
+        onPress={() => {
+          void handleVerify();
+        }}
+      />
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background.canvas,
-  },
-  flex: {
-    flex: 1,
-  },
-  topArt: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 150,
-    opacity: 1,
-  },
-  scroll: {
-    paddingHorizontal: spacing.xxl,
-    flexGrow: 1,
-  },
-  missingWrap: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: spacing.xxl,
-    gap: spacing.lg,
-  },
-  backHit: {
-    width: 44,
-    height: 44,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    zIndex: 2,
-    marginBottom: spacing.xs,
-  },
-  brand: {
-    alignItems: 'center',
-    marginBottom: spacing.xxl,
-  },
-  logo: {
-    height: 72,
-  },
-  copyBlock: {
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginBottom: spacing.xxxl,
-  },
-  heading: {
-    fontFamily: fontFamilies.brandSerif,
-    fontSize: 30,
-    lineHeight: 38,
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  sentLabel: {
-    fontFamily: fontFamilies.bodySans,
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-  },
   email: {
-    fontFamily: fontFamilies.bodySans,
+    fontFamily: customerFonts.bold,
     fontSize: 16,
     lineHeight: 22,
-    fontWeight: '700',
-    color: colors.text.primary,
+    color: brand.plum,
     textAlign: 'center',
+    marginTop: -10,
   },
-  body: {
-    fontFamily: fontFamilies.bodySans,
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.text.secondary,
-    textAlign: 'center',
-  },
-  otpBlock: {
-    marginBottom: spacing.lg,
-  },
-  resendWrap: {
-    alignItems: 'center',
-    gap: spacing.xs,
-    minHeight: 44,
-    justifyContent: 'center',
-    marginBottom: spacing.xxxl,
-  },
-  resendHit: {
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-  },
-  resendText: {
-    fontFamily: fontFamilies.bodySans,
-    fontSize: 14,
-    color: colors.text.secondary,
-  },
-  resendAccent: {
-    color: colors.brand.eucalyptus,
-    fontWeight: '700',
-  },
-  resendAction: {
-    fontFamily: fontFamilies.bodySans,
-    fontSize: 14,
-    color: colors.brand.eucalyptus,
-    fontWeight: '700',
-  },
+  resendWrap: { alignItems: 'center', gap: 4, minHeight: 44, justifyContent: 'center' },
+  resendHit: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 },
+  resendText: { fontFamily: customerFonts.regular, fontSize: 14, color: brand.grey },
+  resendAccent: { fontFamily: customerFonts.bold, color: brand.plum },
+  resendAction: { fontFamily: customerFonts.bold, fontSize: 14, color: brand.plum },
   hint: {
-    fontFamily: fontFamilies.bodySans,
+    fontFamily: customerFonts.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.text.muted,
+    color: brand.grey,
     textAlign: 'center',
     maxWidth: 320,
-    marginTop: spacing.xs,
-  },
-  continueWrap: {
-    marginTop: 'auto',
-    paddingTop: spacing.lg,
-  },
-  continueButton: {
-    borderRadius: radius.full,
-    minHeight: 54,
-  },
-  bottomArtWrap: {
-    marginTop: spacing.xl,
-    overflow: 'hidden',
-  },
-  bottomArt: {
-    alignSelf: 'center',
+    marginTop: 4,
   },
 });

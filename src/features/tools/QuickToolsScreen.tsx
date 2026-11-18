@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FadeInView, PressableScale } from '@/components/motion';
 import { PREVIEW_TOOLS, type PreviewTool } from '@/features/tools/toolCatalog';
+import { BRAND_ASSETS } from '@/constants/brandAssets';
 import {
   colors,
   fontFamilies,
@@ -21,7 +22,7 @@ import {
   spacing,
 } from '@/theme';
 
-const BRAND_LOGO = require('../../../assets/brand/yuktione-logo-light.png');
+const BRAND_LOGO = BRAND_ASSETS.logo;
 
 /**
  * Screen 09 / PNG Screen_13 — Quick Tools.
@@ -167,7 +168,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconWrapPaid: {
-    backgroundColor: '#F8EFE3',
+    backgroundColor: '#F7EBDD',
   },
   cardCopy: {
     flex: 1,
@@ -193,7 +194,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.eucalyptusSoft,
   },
   badgePaid: {
-    backgroundColor: '#F8EFE3',
+    backgroundColor: '#F7EBDD',
   },
   badgeText: {
     fontFamily: fontFamilies.bodySans,

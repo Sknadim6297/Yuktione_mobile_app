@@ -12,9 +12,10 @@ import { PressableScale } from '@/components/motion';
 import { FullBleedArt, HERO_ART } from '@/features/onboarding/FullBleedArt';
 import { OnboardingFooter } from '@/features/onboarding/OnboardingFooter';
 import { ONBOARDING_STEP_COUNT } from '@/features/onboarding/content';
+import { BRAND_ASSETS } from '@/constants/brandAssets';
 import { customer, customerFonts, motion } from '@/theme';
 
-const LOGO = require('../../../assets/brand/yuktione-logo-light.png');
+const LOGO = BRAND_ASSETS.logo;
 
 export type OnboardingSlideProps = {
   heading: string;

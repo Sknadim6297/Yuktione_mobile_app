@@ -1,45 +1,68 @@
+import { brand } from './brand';
+
 /**
- * Customer UI tokens taken from the screens/ reference set.
- * The official logo asset is unchanged; these tokens only cover chrome.
+ * Customer UI tokens, mapped onto the YuktiOne website palette (see brand.ts).
+ *
+ * Legacy key names (teal, navy, mint, …) are kept so every screen keeps compiling;
+ * they now resolve to website colours: teal → plum, navy → ink, mint → plum-soft.
+ * Prefer the semantic keys (primary, ink, primarySoft, accent) in new code.
  */
 export const customer = {
-  canvas: '#F8F5F0',
-  cream: '#FBF8F3',
-  white: '#FFFFFF',
-  navy: '#142B4D',
-  body: '#3D4F69',
-  muted: '#6D7B90',
-  teal: '#36877F',
-  tealDark: '#2B6D66',
-  mint: '#E8F3F1',
-  mintDeep: '#D4E9E5',
-  lavender: '#EFEBF8',
-  lavenderInk: '#6B5CA5',
-  chip: '#F1EEE9',
-  line: '#E8E2D9',
+  // Semantic
+  primary: brand.plum,
+  primaryDark: brand.plumDark,
+  primarySoft: brand.plumSoft,
+  accent: brand.magenta,
+  accentSoft: brand.magentaSoft,
+  copper: brand.copper,
+  pearl: brand.pearl,
+  ink: brand.ink,
+  border: brand.silver,
+
+  // Surfaces & text (legacy names)
+  canvas: brand.pearl,
+  cream: brand.pearlDeep,
+  white: brand.white,
+  navy: brand.ink,
+  body: '#3E3E4A',
+  muted: brand.grey,
+  teal: brand.plum,
+  tealDark: brand.plumDark,
+  mint: brand.plumSoft,
+  mintDeep: brand.plumSoftDeep,
+  lavender: brand.lilacSoft,
+  lavenderInk: '#7A3E8E',
+  chip: '#F7EEF2',
+  line: '#EDE3E8',
+
+  // Status
   star: '#F5B301',
-  free: '#1C9B62',
-  paid: '#E15B73',
-  danger: '#C4505F',
-  shadow: '#142B4D',
-  lilac: '#F1ECFF',
-  lilacInk: '#6E5BD6',
-  blue: '#E8F1FF',
-  blueInk: '#3D6FE0',
-  peach: '#FFF0E4',
-  peachInk: '#E08A3C',
-  pink: '#FDECEE',
-  pinkInk: '#E25B8A',
-  green: '#E6F8EF',
-  greenInk: '#1F9D6A',
-  sky: '#E7F6FB',
-  skyInk: '#2A9BB5',
+  free: '#2E8A5E',
+  paid: brand.magenta,
+  danger: '#C4314B',
+  shadow: brand.charcoal,
+
+  // Category accent pairs (soft surface + ink), harmonised with the plum palette
+  lilac: brand.lilacSoft,
+  lilacInk: '#7A3E8E',
+  blue: '#EEF1FB',
+  blueInk: '#4A5BB5',
+  peach: '#FBF0E6',
+  peachInk: brand.copper,
+  pink: brand.magentaSoft,
+  pinkInk: brand.magenta,
+  green: '#EAF6EF',
+  greenInk: '#2E8A5E',
+  sky: '#EAF4F8',
+  skyInk: '#3A8AA5',
   gold: '#FFF6DE',
-  goldInk: '#C8960A',
+  goldInk: '#B8860B',
 } as const;
 
+/** The website sets every heading and body line in DM Sans. */
 export const customerFonts = {
   regular: 'DMSans_400Regular',
   medium: 'DMSans_500Medium',
+  semibold: 'DMSans_600SemiBold',
   bold: 'DMSans_700Bold',
 } as const;

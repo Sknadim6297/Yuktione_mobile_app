@@ -28,13 +28,13 @@ import { CustomerPage, IconButton, SectionTitle } from '@/features/customer/ui';
 import {
   fetchExperts,
   fetchProgrammeEvents,
-  fetchTools,
   type ApiExpert,
   type ApiExpertCategory,
   type ApiProgrammeEvent,
   type ApiTool,
 } from '@/services/api/catalog';
 import { resolveImageUrl, websiteImage } from '@/services/media/imageUrl';
+import { selectTools, useToolsCatalogue } from '@/features/tools/toolsCatalogue';
 import { customer, customerFonts, shadows } from '@/theme';
 
 const LIVE = !FRONTEND_ONLY && isApiConfigured();
@@ -105,13 +105,8 @@ export function ExploreScreen() {
     enabled: LIVE && tab === 'experts',
   });
 
-  const tools = useQuery({
-    queryKey: ['v1', 'tools'],
-    queryFn: async () => {
-      const result = await fetchTools();
-      if (!result.ok) throw new Error(result.message);
-      return result.tools;
-    },
+  const tools = useToolsCatalogue({
+    select: selectTools,
     enabled: LIVE && tab === 'tools' && slug === null,
   });
 

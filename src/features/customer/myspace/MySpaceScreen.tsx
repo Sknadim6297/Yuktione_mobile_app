@@ -31,7 +31,8 @@ import { CustomerPage, IconButton, TealButton, TrendChart } from '@/features/cus
 import { useSignOut } from '@/features/customer/useSignOut';
 import { fetchExpert } from '@/services/api/catalog';
 import { openWebsitePath } from '@/services/website/openWebsite';
-import { customer, customerFonts } from '@/theme';
+import { BrandGradient } from '@/components/brand';
+import { brand, brandGradients, customer, customerFonts } from '@/theme';
 
 const SAVED_EXPERT_PREVIEW = 4;
 
@@ -131,6 +132,7 @@ export function MySpaceScreen() {
   return (
     <CustomerPage nav="space" active="my-space" right={header}>
       <View style={styles.profile}>
+        <BrandGradient colors={brandGradients.panel} angle={135} style={StyleSheet.absoluteFill} />
         <View style={styles.profileTop}>
           <Avatar name={name} uri={profileImageUrl(profile)} size={64} />
           <View style={styles.profileText}>
@@ -584,12 +586,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   link: { fontFamily: customerFonts.bold, fontSize: 13, color: customer.teal, textAlign: 'center' },
-  profile: { backgroundColor: customer.navy, borderRadius: 24, padding: 18, gap: 14 },
+  profile: { backgroundColor: brand.plumDeep, borderRadius: 24, padding: 18, gap: 14, overflow: 'hidden' },
   profileTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   profileText: { flex: 1, gap: 1 },
-  greeting: { fontFamily: customerFonts.medium, fontSize: 13, color: '#B9C7DA' },
+  greeting: { fontFamily: customerFonts.medium, fontSize: 13, color: 'rgba(255,255,255,0.78)' },
   name: { fontFamily: customerFonts.bold, fontSize: 21, color: customer.white },
-  contact: { fontFamily: customerFonts.regular, fontSize: 12.5, color: '#D5DEEA' },
+  contact: { fontFamily: customerFonts.regular, fontSize: 12.5, color: 'rgba(255,255,255,0.86)' },
   editButton: {
     width: 38,
     height: 38,
@@ -600,11 +602,11 @@ const styles = StyleSheet.create({
   },
   completion: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 12, gap: 8 },
   completionRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  completionLabel: { fontFamily: customerFonts.medium, fontSize: 13, color: '#D5DEEA' },
+  completionLabel: { fontFamily: customerFonts.medium, fontSize: 13, color: 'rgba(255,255,255,0.86)' },
   completionValue: { fontFamily: customerFonts.bold, fontSize: 13, color: customer.white },
-  completionHint: { fontFamily: customerFonts.regular, fontSize: 12, color: '#B9C7DA' },
+  completionHint: { fontFamily: customerFonts.regular, fontSize: 12, color: 'rgba(255,255,255,0.78)' },
   track: { height: 8, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.16)', overflow: 'hidden' },
-  fill: { height: 8, borderRadius: 8, backgroundColor: '#6FC2B8' },
+  fill: { height: 8, borderRadius: 8, backgroundColor: '#F4A0C6' },
   profileError: { fontFamily: customerFonts.regular, fontSize: 12, color: '#F6C4CC' },
   sectionHead: { marginBottom: -4 },
   sectionTitle: { fontFamily: customerFonts.bold, fontSize: 16, color: customer.navy },

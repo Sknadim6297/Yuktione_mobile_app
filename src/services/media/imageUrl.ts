@@ -38,8 +38,15 @@ export function resolveImageUrl(value: string | null | undefined): string | null
   return `${APP_CONFIG.apiBaseUrl}/${path}`;
 }
 
+/** Website page URL from the API, normalised the same way as images (loopback hosts → API host). */
+export function resolveWebsiteUrl(value: string | null | undefined): string | null {
+  return resolveImageUrl(value);
+}
+
 /** Static images that ship with the website under public/. */
 export const WEBSITE_IMAGES = {
+  /** Tools page hero (resources/views/frontend/sections/tools.blade.php). */
+  tools: 'frontend/assets/img/yuktione-tools-hero.png',
   /** Home hero poster (resources/views/frontend/home/partials/hero.blade.php). */
   hero: 'frontend/assets/img/yuktione-hero-poster.jpg',
   /** Experts directory hero (resources/views/frontend/sections/experts.blade.php). */

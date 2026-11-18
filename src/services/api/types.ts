@@ -22,4 +22,6 @@ export type RequestOptions = {
   auth?: boolean;
   headers?: Record<string, string>;
   signal?: AbortSignal;
+  /** Override the default request timeout (ms). Used for slow server-side work such as sending email. */
+  timeoutMs?: number;
 };

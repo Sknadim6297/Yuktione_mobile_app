@@ -1,21 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import {
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AuthShell, FormInput, PrimaryButton } from '@/components/brand';
 import { isApiConfigured } from '@/constants/config';
 import { FRONTEND_ONLY } from '@/constants/frontendOnly';
 import { validateAuthIdentifier } from '@/features/auth/validation';
@@ -26,74 +14,71 @@ import {
   splitFullName,
 } from '@/features/auth/pendingRegistrationStore';
 import { customerActions } from '@/features/customer/store';
-import { BrandLogo, TealButton } from '@/features/customer/ui';
 import {
   loginCustomer,
   requestPasswordReset,
   saveCustomerLead,
   sendRegistrationOtp,
 } from '@/services/api/auth';
-import { customer, customerFonts } from '@/theme';
+import { openWebsitePath } from '@/services/website/openWebsite';
+import { brand, customer, customerFonts } from '@/theme';
 
-const AUTH_BG = require('../../../assets/illustrations/auth-bottom-landscape.jpg');
-
-function Field({
+function SocialButton({
   icon,
-  value,
-  onChangeText,
-  placeholder,
-  secure,
-  keyboard,
-  onToggleSecure,
-  secureVisible,
+  color,
+  label,
+  onPress,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
-  value: string;
-  onChangeText: (value: string) => void;
-  placeholder: string;
-  secure?: boolean;
-  keyboard?: 'email-address' | 'default';
-  onToggleSecure?: () => void;
-  secureVisible?: boolean;
+  color: string;
+  label: string;
+  onPress: () => void;
 }) {
   return (
-    <View style={styles.field}>
-      <Ionicons name={icon} size={18} color={customer.muted} />
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#9AABBA"
-        secureTextEntry={secure && !secureVisible}
-        keyboardType={keyboard === 'email-address' ? 'email-address' : 'default'}
-        autoCapitalize="none"
-        autoCorrect={false}
-        style={styles.input}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.social, pressed && styles.socialPressed]}
+    >
+      <Ionicons name={icon} size={18} color={color} />
+      <Text style={styles.socialText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function OrDivider() {
+  return (
+    <View style={styles.orRow}>
+      <View style={styles.orLine} />
+      <Text style={styles.or}>or continue with email</Text>
+      <View style={styles.orLine} />
+    </View>
+  );
+}
+
+function Notice({ tone, message }: { tone: 'error' | 'success'; message: string }) {
+  const error = tone === 'error';
+  return (
+    <View
+      style={[styles.notice, error ? styles.noticeError : styles.noticeSuccess]}
+      accessibilityLiveRegion="polite"
+    >
+      <Ionicons
+        name={error ? 'alert-circle-outline' : 'checkmark-circle-outline'}
+        size={18}
+        color={error ? customer.danger : customer.free}
       />
-      {onToggleSecure ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={secureVisible ? 'Hide password' : 'Show password'}
-          onPress={onToggleSecure}
-          hitSlop={8}
-        >
-          <Ionicons
-            name={secureVisible ? 'eye-off-outline' : 'eye-outline'}
-            size={18}
-            color={customer.muted}
-          />
-        </Pressable>
-      ) : null}
+      <Text style={[styles.noticeText, { color: error ? customer.danger : customer.free }]}>
+        {message}
+      </Text>
     </View>
   );
 }
 
 export function SignInScreen() {
-  const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
 
@@ -187,105 +172,89 @@ export function SignInScreen() {
   };
 
   return (
-    <View style={styles.root}>
-      <Image
-        source={AUTH_BG}
-        style={[styles.bg, { height: Math.round(height * 1.05) }]}
-        resizeMode="cover"
-        accessibilityElementsHidden
+    <AuthShell
+      headline="Your everyday growth partner, right in your"
+      accent="pocket."
+      points={['Verified professionals', 'Practical everyday tools', 'Private & secure']}
+      badge="CUSTOMER ACCOUNT"
+      title="Welcome back"
+      lead="Sign in to continue to your YuktiOne account."
+      fixed
+      footer={
+        <Text style={styles.switch}>
+          Don&apos;t have an account?{' '}
+          <Text style={styles.switchLink} onPress={() => router.push('/auth/sign-up')}>
+            Create one
+          </Text>
+        </Text>
+      }
+    >
+      <FormInput
+        label="Email address"
+        icon="mail-outline"
+        value={identifier}
+        onChangeText={(value) => {
+          setIdentifier(value);
+          if (error) setError(undefined);
+        }}
+        placeholder="you@example.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoComplete="email"
+        textContentType="emailAddress"
+        returnKeyType="next"
+      />
+      <FormInput
+        label="Password"
+        icon="lock-closed-outline"
+        value={password}
+        onChangeText={(value) => {
+          setPassword(value);
+          if (error) setError(undefined);
+        }}
+        placeholder="Enter your password"
+        password
+        autoCapitalize="none"
+        autoComplete="password"
+        textContentType="password"
+        returnKeyType="go"
+        onSubmitEditing={submit}
       />
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <Pressable
+        style={styles.forgotWrap}
+        onPress={() => router.push('/auth/forgot-password')}
+        hitSlop={8}
+        accessibilityRole="link"
       >
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.scroll,
-            {
-              paddingTop: Math.max(insets.top, 16) + 8,
-              paddingBottom: Math.max(insets.bottom, 24),
-            },
-          ]}
-        >
-          <View style={styles.logoWrap}>
-            <BrandLogo width={180} />
-          </View>
+        <Text style={styles.forgot}>Forgot password?</Text>
+      </Pressable>
 
-          <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.lead}>Continue your wellness journey</Text>
+      {error ? <Notice tone="error" message={error} /> : null}
 
-          <View style={styles.form}>
-            <Pressable style={styles.social} onPress={() => social('Google')}>
-              <Ionicons name="logo-google" size={18} color="#DB4437" />
-              <Text style={styles.socialText}>Continue with Google</Text>
-            </Pressable>
-            <Pressable style={styles.social} onPress={() => social('Apple')}>
-              <Ionicons name="logo-apple" size={18} color={customer.navy} />
-              <Text style={styles.socialText}>Continue with Apple</Text>
-            </Pressable>
+      <PrimaryButton
+        label="Sign In"
+        icon="arrow-forward"
+        iconPosition="end"
+        onPress={submit}
+        loading={busy}
+      />
 
-            <View style={styles.orRow}>
-              <View style={styles.orLine} />
-              <Text style={styles.or}>OR</Text>
-              <View style={styles.orLine} />
-            </View>
-
-            <Field
-              icon="mail-outline"
-              value={identifier}
-              onChangeText={setIdentifier}
-              placeholder="Email or mobile number"
-              keyboard="email-address"
-            />
-            <Field
-              icon="lock-closed-outline"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Password"
-              secure
-              secureVisible={showPassword}
-              onToggleSecure={() => setShowPassword((value) => !value)}
-            />
-
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-
-            <Pressable
-              style={styles.forgotWrap}
-              onPress={() => router.push('/auth/forgot-password')}
-            >
-              <Text style={styles.forgot}>Forgot password?</Text>
-            </Pressable>
-
-            <TealButton
-              label={busy ? 'Signing in…' : 'Sign In'}
-              icon="arrow-forward"
-              iconPosition="end"
-              onPress={submit}
-              disabled={busy}
-            />
-
-            <Text style={styles.switch}>
-              Don&apos;t have an account?{' '}
-              <Text style={styles.switchLink} onPress={() => router.push('/auth/sign-up')}>
-                Sign Up
-              </Text>
-            </Text>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+      <OrDivider />
+      <View style={styles.socialRow}>
+        <SocialButton icon="logo-google" color="#DB4437" label="Google" onPress={() => social('Google')} />
+        <SocialButton icon="logo-apple" color={brand.ink} label="Apple" onPress={() => social('Apple')} />
+      </View>
+    </AuthShell>
   );
 }
 
 export function SignUpScreen() {
-  const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
 
@@ -307,6 +276,10 @@ export function SignUpScreen() {
     }
     if (password.trim().length < 6) {
       setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (!acceptedTerms) {
+      setError('Please accept the Terms & Conditions and Privacy Policy to continue.');
       return;
     }
     setError(undefined);
@@ -370,237 +343,277 @@ export function SignUpScreen() {
     });
   };
 
+  const clearError = () => {
+    if (error) setError(undefined);
+  };
+
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        contentContainerStyle={{
-          paddingTop: Math.max(insets.top, 12),
-          paddingHorizontal: 20,
-          paddingBottom: 32,
-          gap: 12,
-        }}
-      >
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Ionicons name="chevron-back" size={24} color={customer.teal} />
-        </Pressable>
-        <BrandLogo width={150} />
-        <Text style={styles.title}>Create your account</Text>
-        <Text style={styles.lead}>We&apos;ll verify your email next.</Text>
-        <Field icon="person-outline" value={name} onChangeText={setName} placeholder="Full name" />
-        <Field
-          icon="call-outline"
-          value={phone}
-          onChangeText={setPhone}
-          placeholder="Mobile number"
-        />
-        <Field
-          icon="mail-outline"
-          value={email}
-          onChangeText={setEmail}
-          placeholder="Email"
-          keyboard="email-address"
-        />
-        <Field
-          icon="lock-closed-outline"
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Password"
-          secure
-        />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <TealButton label="Continue" onPress={() => void submit()} disabled={busy} />
+    <AuthShell
+      onBack={() => (router.canGoBack() ? router.back() : router.replace('/auth'))}
+      headline="Find the right expert or grow your professional"
+      accent="journey."
+      points={['Verified Professionals', 'Easy & Secure Booking', 'Trusted by Thousands']}
+      badge="CUSTOMER SIGNUP"
+      title="Create your account"
+      lead="Join YuktiOne to connect with trusted professionals."
+      footer={
         <Text style={styles.switch}>
           Already registered?{' '}
           <Text style={styles.switchLink} onPress={() => router.replace('/auth')}>
             Sign In
           </Text>
         </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      }
+    >
+      <View style={styles.steps} accessibilityLabel="Step 1 of 2: Personal info">
+        <View style={styles.step}>
+          <View style={[styles.stepDot, styles.stepDotOn]}>
+            <Text style={styles.stepNumOn}>1</Text>
+          </View>
+          <Text style={[styles.stepLabel, styles.stepLabelOn]}>Personal Info</Text>
+        </View>
+        <View style={styles.stepLine} />
+        <View style={styles.step}>
+          <View style={styles.stepDot}>
+            <Text style={styles.stepNum}>2</Text>
+          </View>
+          <Text style={styles.stepLabel}>Verify Email</Text>
+        </View>
+      </View>
+
+      <FormInput
+        label="Full name"
+        icon="person-outline"
+        value={name}
+        onChangeText={(value) => {
+          setName(value);
+          clearError();
+        }}
+        placeholder="Your full name"
+        autoCapitalize="words"
+        autoComplete="name"
+        textContentType="name"
+      />
+      <FormInput
+        label="Mobile number"
+        icon="call-outline"
+        value={phone}
+        onChangeText={(value) => {
+          setPhone(value);
+          clearError();
+        }}
+        placeholder="10-digit mobile number"
+        keyboardType="phone-pad"
+        autoComplete="tel"
+        textContentType="telephoneNumber"
+      />
+      <FormInput
+        label="Email address"
+        icon="mail-outline"
+        value={email}
+        onChangeText={(value) => {
+          setEmail(value);
+          clearError();
+        }}
+        placeholder="you@example.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoComplete="email"
+        textContentType="emailAddress"
+        hint="We’ll send a 6-digit code to verify this email."
+      />
+      <FormInput
+        label="Password"
+        icon="lock-closed-outline"
+        value={password}
+        onChangeText={(value) => {
+          setPassword(value);
+          clearError();
+        }}
+        placeholder="At least 6 characters"
+        password
+        autoCapitalize="none"
+        autoComplete="new-password"
+        textContentType="newPassword"
+      />
+
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: acceptedTerms }}
+        onPress={() => {
+          setAcceptedTerms((value) => !value);
+          clearError();
+        }}
+        style={styles.terms}
+        hitSlop={6}
+      >
+        <View style={[styles.checkbox, acceptedTerms && styles.checkboxOn]}>
+          {acceptedTerms ? <Ionicons name="checkmark" size={14} color={brand.white} /> : null}
+        </View>
+        <Text style={styles.termsText}>
+          I agree to the{' '}
+          <Text style={styles.termsLink} onPress={() => void openWebsitePath('terms')}>
+            Terms & Conditions
+          </Text>{' '}
+          and{' '}
+          <Text style={styles.termsLink} onPress={() => void openWebsitePath('privacy')}>
+            Privacy Policy
+          </Text>
+          .
+        </Text>
+      </Pressable>
+
+      {error ? <Notice tone="error" message={error} /> : null}
+
+      <PrimaryButton
+        label={busy ? 'Sending code…' : 'Continue'}
+        icon="arrow-forward"
+        iconPosition="end"
+        onPress={() => void submit()}
+        loading={busy}
+        accessibilityHint="Saves your details and emails a verification code"
+      />
+      {busy ? (
+        <Text style={styles.busyHint}>Sending your verification email — this can take a few seconds.</Text>
+      ) : null}
+    </AuthShell>
   );
 }
 
 export function ForgotPasswordScreen() {
-  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
   const identity = useMemo(() => validateAuthIdentifier(email), [email]);
 
+  const submit = () => {
+    if (!identity.ok || identity.kind !== 'email') {
+      setSuccess(false);
+      setMessage('Enter the email on your account.');
+      return;
+    }
+    if (FRONTEND_ONLY || !isApiConfigured()) {
+      setSuccess(false);
+      setMessage(
+        FRONTEND_ONLY ? 'Password reset requires API mode.' : 'API base URL is not configured.',
+      );
+      return;
+    }
+    setBusy(true);
+    void requestPasswordReset(identity.normalized)
+      .then((result) => {
+        setSuccess(result.ok);
+        setMessage(result.message);
+      })
+      .finally(() => setBusy(false));
+  };
+
   return (
-    <View
-      style={[
-        styles.root,
-        { paddingTop: Math.max(insets.top, 12), paddingHorizontal: 20, gap: 12 },
-      ]}
+    <AuthShell
+      onBack={() => (router.canGoBack() ? router.back() : router.replace('/auth'))}
+      headline="It happens to everyone. Let’s get you back"
+      accent="in."
+      badge="ACCOUNT RECOVERY"
+      title="Forgot password"
+      lead="Enter the email on your account and we’ll send you a secure reset link."
+      footer={
+        <Text style={styles.switch}>
+          Remembered it?{' '}
+          <Text style={styles.switchLink} onPress={() => router.replace('/auth')}>
+            Back to Sign In
+          </Text>
+        </Text>
+      }
     >
-      <Pressable onPress={() => router.back()} hitSlop={8}>
-        <Ionicons name="chevron-back" size={24} color={customer.teal} />
-      </Pressable>
-      <Text style={styles.title}>Forgot password</Text>
-      <Text style={styles.lead}>Enter the email on your account to request a reset.</Text>
-      <Field
+      <FormInput
+        label="Email address"
         icon="mail-outline"
         value={email}
-        onChangeText={setEmail}
-        placeholder="Email"
-        keyboard="email-address"
-      />
-      {message ? (
-        <Text style={success ? styles.success : styles.error}>{message}</Text>
-      ) : null}
-      <TealButton
-        label="Request reset"
-        disabled={busy}
-        onPress={() => {
-          if (!identity.ok || identity.kind !== 'email') {
-            setSuccess(false);
-            setMessage('Enter the email on your account.');
-            return;
-          }
-          if (FRONTEND_ONLY || !isApiConfigured()) {
-            setSuccess(false);
-            setMessage(
-              FRONTEND_ONLY
-                ? 'Password reset requires API mode.'
-                : 'API base URL is not configured.',
-            );
-            return;
-          }
-          setBusy(true);
-          void requestPasswordReset(identity.normalized)
-            .then((result) => {
-              setSuccess(result.ok);
-              setMessage(result.message);
-            })
-            .finally(() => setBusy(false));
+        onChangeText={(value) => {
+          setEmail(value);
+          if (message && !success) setMessage(undefined);
         }}
+        placeholder="you@example.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoComplete="email"
+        textContentType="emailAddress"
+        returnKeyType="send"
+        onSubmitEditing={submit}
       />
-    </View>
+      {message ? <Notice tone={success ? 'success' : 'error'} message={message} /> : null}
+      <PrimaryButton label="Send reset link" icon="mail-outline" onPress={submit} loading={busy} />
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: customer.canvas,
-  },
-  flex: {
-    flex: 1,
-  },
-  bg: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: '100%',
-  },
-  scroll: {
-    flexGrow: 1,
-    justifyContent: 'flex-start',
-  },
-  logoWrap: {
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  title: {
-    fontFamily: customerFonts.bold,
-    fontSize: 30,
-    color: customer.navy,
-    textAlign: 'center',
-  },
-  lead: {
-    fontFamily: customerFonts.regular,
-    fontSize: 15,
-    color: customer.body,
-    textAlign: 'center',
-    marginBottom: 18,
-    marginTop: 4,
-    lineHeight: 22,
-    paddingHorizontal: 24,
-  },
-  form: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
+  socialRow: { flexDirection: 'row', gap: 10 },
   social: {
-    minHeight: 52,
-    borderRadius: 16,
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#D5E0E4',
-    backgroundColor: customer.white,
+    borderColor: brand.silver,
+    backgroundColor: brand.white,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 8,
   },
-  socialText: {
-    fontFamily: customerFonts.bold,
-    color: customer.navy,
-    fontSize: 15,
-  },
-  orRow: {
+  socialPressed: { backgroundColor: brand.pearlDeep },
+  socialText: { fontFamily: customerFonts.bold, color: brand.ink, fontSize: 14 },
+  orRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  orLine: { flex: 1, height: 1, backgroundColor: brand.divider },
+  or: { fontFamily: customerFonts.medium, color: brand.grey, fontSize: 12 },
+  forgotWrap: { alignSelf: 'flex-end', marginTop: -4 },
+  forgot: { color: brand.plum, fontFamily: customerFonts.bold, fontSize: 13 },
+  notice: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  noticeError: { backgroundColor: '#FCEBEE' },
+  noticeSuccess: { backgroundColor: '#EAF6EF' },
+  noticeText: { flex: 1, fontFamily: customerFonts.medium, fontSize: 13, lineHeight: 18 },
+  switch: { textAlign: 'center', fontFamily: customerFonts.regular, color: customer.body, fontSize: 14 },
+  switchLink: { color: brand.plum, fontFamily: customerFonts.bold },
+  steps: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  step: { alignItems: 'center', gap: 4, width: 96 },
+  stepDot: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: brand.silver,
     alignItems: 'center',
-    gap: 10,
-    marginVertical: 2,
+    justifyContent: 'center',
+    backgroundColor: brand.white,
   },
-  orLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E1E8EC',
-  },
-  or: {
-    fontFamily: customerFonts.medium,
-    color: customer.muted,
-    fontSize: 12,
-  },
-  field: {
-    minHeight: 52,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#D5E0E4',
-    backgroundColor: customer.white,
-    flexDirection: 'row',
+  stepDotOn: { backgroundColor: brand.plum, borderColor: brand.plum },
+  stepNum: { fontFamily: customerFonts.bold, fontSize: 12, color: brand.grey },
+  stepNumOn: { fontFamily: customerFonts.bold, fontSize: 12, color: brand.white },
+  stepLabel: { fontFamily: customerFonts.semibold, fontSize: 11.5, color: brand.grey },
+  stepLabelOn: { color: brand.plum },
+  stepLine: { flex: 1, maxWidth: 60, height: 1.5, backgroundColor: brand.silver, marginBottom: 18 },
+  terms: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: brand.silver,
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
+    justifyContent: 'center',
+    backgroundColor: brand.white,
+    marginTop: 1,
   },
-  input: {
-    flex: 1,
-    fontFamily: customerFonts.regular,
-    fontSize: 15,
-    color: customer.navy,
-    paddingVertical: 12,
-  },
-  forgotWrap: {
-    alignSelf: 'flex-end',
-  },
-  forgot: {
-    color: customer.teal,
-    fontFamily: customerFonts.bold,
-    fontSize: 13,
-  },
-  error: {
-    color: customer.danger,
-    fontFamily: customerFonts.medium,
-    fontSize: 13,
-  },
-  success: {
-    color: customer.teal,
-    fontFamily: customerFonts.medium,
-    fontSize: 13,
-  },
-  switch: {
-    textAlign: 'center',
-    fontFamily: customerFonts.regular,
-    color: customer.body,
-    fontSize: 14,
-    marginTop: 4,
-  },
-  switchLink: {
-    color: customer.teal,
-    fontFamily: customerFonts.bold,
-  },
+  checkboxOn: { backgroundColor: brand.plum, borderColor: brand.plum },
+  termsText: { flex: 1, fontFamily: customerFonts.regular, fontSize: 13, lineHeight: 19, color: customer.body },
+  termsLink: { fontFamily: customerFonts.bold, color: brand.plum },
+  busyHint: { textAlign: 'center', fontFamily: customerFonts.regular, fontSize: 12.5, color: brand.grey },
 });
