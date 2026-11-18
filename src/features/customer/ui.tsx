@@ -1,22 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, type Ref, useState } from 'react';
 import {
   Image,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   useWindowDimensions,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
-import { customerActions } from '@/features/customer/store';
-import { logoutCustomer } from '@/services/api/auth';
+import { useSignOut } from '@/features/customer/useSignOut';
 import { customer, customerFonts, shadows } from '@/theme';
 
 /** Official mark with black background removed for light UI surfaces. */
@@ -194,6 +195,10 @@ export function CustomerPage({
   footer,
   nav,
   active,
+  refreshing,
+  onRefresh,
+  dismissKeyboardOnDrag,
+  scrollRef,
 }: {
   children: ReactNode;
   onBack?: () => void;
@@ -202,13 +207,30 @@ export function CustomerPage({
   footer?: ReactNode;
   nav?: NavPreset;
   active?: NavId;
+  /** Pull-to-refresh, shown only when onRefresh is set. */
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  dismissKeyboardOnDrag?: boolean;
+  scrollRef?: Ref<ScrollViewInstance>;
 }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={styles.page}>
       <ScreenHeader onBack={onBack} left={left} right={right} />
       <ScrollView
+        ref={scrollRef}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={dismissKeyboardOnDrag ? 'on-drag' : 'none'}
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={refreshing ?? false}
+              onRefresh={onRefresh}
+              tintColor={customer.teal}
+              colors={[customer.teal]}
+            />
+          ) : undefined
+        }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
       >
@@ -496,6 +518,7 @@ const MENU: { label: string; href: Href }[] = [
 
 export function AppMenu({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const insets = useSafeAreaInsets();
+  const { signOutNow } = useSignOut();
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -519,11 +542,7 @@ export function AppMenu({ visible, onClose }: { visible: boolean; onClose: () =>
               style={styles.menuRow}
               onPress={() => {
                 onClose();
-                void (async () => {
-                  await logoutCustomer();
-                  customerActions.signOut();
-                  router.replace('/auth');
-                })();
+                void signOutNow();
               }}
             >
               <Text style={[styles.menuLabel, styles.dangerText]}>Sign out</Text>

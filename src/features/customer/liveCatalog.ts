@@ -1,5 +1,6 @@
-import type { Href } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import type { ComponentProps } from 'react';
+import { Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { ApiExpert, ApiTool, ApiToolCategory } from '@/services/api/catalog';
@@ -51,7 +52,7 @@ export function toolHref(tool: ApiTool): Href | null {
   if (!tool.mobile_ready) return null;
   switch (tool.slug) {
     case 'daily-mood-check-in':
-      return '/insights/mood';
+      return { pathname: '/tools/[id]', params: { id: 'mood-check-in' } };
     case 'digital-journal':
       return '/tools/journal';
     case 'gratitude-journal':
@@ -73,6 +74,20 @@ export function toolHref(tool: ApiTool): Href | null {
     default:
       return { pathname: '/tools/[id]', params: { id: tool.slug } };
   }
+}
+
+/** Opens the mobile runner, or explains that the tool lives on the website. */
+export function openLiveTool(tool: ApiTool): void {
+  const href = toolHref(tool);
+  if (!href) {
+    Alert.alert(
+      tool.name,
+      tool.mobile_message ??
+        'This tool is available on the YuktiOne website. A dedicated mobile experience is not ready yet.',
+    );
+    return;
+  }
+  router.push(href);
 }
 
 export function expertInitials(name: string): string {

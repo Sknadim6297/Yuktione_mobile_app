@@ -78,6 +78,8 @@ export type MoodPoint = {
 export type CustomerState = {
   ready: boolean;
   session: Session | null;
+  /** Account whose device-only data this is; kept after the session ends so another sign-in can't inherit it. */
+  ownerUserId?: number | null;
   moodHistory: MoodPoint[];
   bookings: Booking[];
   enrollments: Enrollment[];
@@ -231,6 +233,10 @@ async function persist(): Promise<void> {
   }
 }
 
+function deviceOwner(value: CustomerState): number | null {
+  return value.ownerUserId ?? value.session?.userId ?? null;
+}
+
 function isState(value: unknown): value is CustomerState {
   return Boolean(value) && typeof value === 'object' && value !== null && 'bookings' in value;
 }
@@ -243,7 +249,10 @@ export async function hydrateCustomerState(): Promise<void> {
         : await SecureStore.getItemAsync(STORAGE_KEY);
     if (raw && !mutated) {
       const parsed: unknown = JSON.parse(raw);
-      if (isState(parsed)) {
+      // A snapshot saved while the UI tour was on holds demo bookings, moods and
+      // programmes; never show that seed to a real customer.
+      const isPreviewSeed = isState(parsed) && parsed.session?.source === 'preview';
+      if (isState(parsed) && !(isPreviewSeed && !FRONTEND_ONLY)) {
         state = { ...parsed, ready: true };
       }
     }
@@ -257,8 +266,10 @@ export async function hydrateCustomerState(): Promise<void> {
       if (token) {
         const me = await fetchCurrentUser();
         if (me.ok) {
+          const base = deviceOwner(state) === me.user.id ? state : emptyState();
           state = {
-            ...state,
+            ...base,
+            ownerUserId: me.user.id,
             ready: true,
             session: {
               userId: me.user.id,
@@ -338,7 +349,8 @@ export const customerActions = {
     phone?: string | null;
   }): void {
     update((current) => ({
-      ...current,
+      ...(deviceOwner(current) === user.id ? current : emptyState()),
+      ownerUserId: user.id,
       session: {
         userId: user.id,
         email: user.email,
@@ -348,8 +360,13 @@ export const customerActions = {
       },
     }));
   },
+  /** Clears the session and everything saved for this person on the device. */
   signOut(): void {
-    update((current) => ({ ...current, session: null }));
+    update(() => emptyState());
+  },
+  /** Removes moods, saved items, journal, goals and bookings stored on this device; keeps the session. */
+  clearDeviceData(): void {
+    update((current) => ({ ...emptyState(), session: current.session }));
   },
   setMood(mood: MoodId): void {
     const today = toIsoDate(new Date());

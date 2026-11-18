@@ -32,6 +32,8 @@ import {
   mapExpertCard,
   type LiveExpertCard,
 } from '@/features/customer/liveCatalog';
+import { AccountBookings } from '@/features/customer/myspace/AccountBookings';
+import { Card } from '@/features/customer/myspace/parts';
 import { requestBookingPayment, type PaymentMethodId } from '@/features/customer/payments';
 import {
   customerActions,
@@ -167,9 +169,14 @@ export function ExpertsHomeScreen() {
 }
 
 export function ExpertsBrowseScreen() {
-  const params = useLocalSearchParams<{ specialty?: string }>();
+  const params = useLocalSearchParams<{ specialty?: string; category?: string; label?: string; q?: string }>();
   const initial = typeof params.specialty === 'string' ? params.specialty : '';
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(typeof params.q === 'string' ? params.q : '');
+  const [category, setCategory] = useState(
+    typeof params.category === 'string' && params.category
+      ? { slug: params.category, label: typeof params.label === 'string' && params.label ? params.label : params.category }
+      : null,
+  );
   const [chip, setChip] = useState(initial || 'All');
   const [sort, setSort] = useState<'recommended' | 'rating' | 'reviews'>('recommended');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -180,13 +187,14 @@ export function ExpertsBrowseScreen() {
   const liveEnabled = !FRONTEND_ONLY && isApiConfigured();
 
   const expertsQuery = useQuery({
-    queryKey: ['v1', 'experts', 'browse', query, chip, specialties.join('|')],
+    queryKey: ['v1', 'experts', 'browse', query, chip, specialties.join('|'), category?.slug ?? null],
     queryFn: async () => {
       const specialty =
         chip !== 'All' ? chip : specialties[0] ? specialties[0] : undefined;
       const result = await fetchExperts({
         q: query.trim() || undefined,
         specialty,
+        category: category?.slug,
         limit: 40,
       });
       if (!result.ok) throw new Error(result.message);
@@ -217,6 +225,17 @@ export function ExpertsBrowseScreen() {
       <Heading>Experts</Heading>
       <Subtitle>Find verified experts and get personalised support for your goals.</Subtitle>
       <SearchField value={query} onChangeText={setQuery} placeholder="Search experts by name, specialty or topic..." />
+      {category ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Remove filter ${category.label}`}
+          onPress={() => setCategory(null)}
+          style={styles.categoryFilter}
+        >
+          <Text style={styles.categoryFilterText}>{category.label}</Text>
+          <Ionicons name="close" size={16} color={customer.teal} />
+        </Pressable>
+      ) : null}
       <ChipRow
         options={['All', 'Mental Health', 'Career', 'Health', 'Lifestyle'].map((label) => ({
           id: label,
@@ -826,12 +845,10 @@ function BookingCard({
   );
 }
 
-export function MyBookingsScreen() {
+function DeviceBookings() {
   const state = useCustomerState();
   const [tab, setTab] = useState<'upcoming' | 'past' | 'cancelled'>('upcoming');
   const items = state.bookings.filter((booking) => booking.status === tab);
-  const next = items[0];
-  const rest = items.slice(1);
   const expertsQuery = useQuery({
     queryKey: ['v1', 'experts', 'bookings-lookup'],
     queryFn: async () => {
@@ -839,18 +856,18 @@ export function MyBookingsScreen() {
       if (!result.ok) throw new Error(result.message);
       return new Map(result.experts.map((expert) => [String(expert.id), mapExpertCard(expert)]));
     },
-    enabled: !FRONTEND_ONLY && isApiConfigured(),
+    enabled: state.bookings.length > 0 && !FRONTEND_ONLY && isApiConfigured(),
   });
   const expertMap = expertsQuery.data;
+
+  if (state.bookings.length === 0) return null;
+
   return (
-    <CustomerPage
-      nav="discover"
-      active="experts"
-      onBack={() => router.back()}
-      right={<IconButton icon="notifications-outline" label="Reminders" badge onPress={() => Alert.alert('Reminders', 'Session reminders will be sent when the notification API is connected.')} />}
-    >
-      <Heading>My Bookings</Heading>
-      <Subtitle>Manage your upcoming and past sessions with experts.</Subtitle>
+    <Card title="Booking requests on this device" source="device">
+      <Text style={styles.meta}>
+        These were made in the app preview and were not sent to YuktiOne. No expert has been booked and no
+        payment was taken.
+      </Text>
       <ChipRow
         options={[
           { id: 'upcoming', label: `Upcoming (${state.bookings.filter((item) => item.status === 'upcoming').length})`, icon: 'calendar-outline' },
@@ -860,28 +877,31 @@ export function MyBookingsScreen() {
         value={tab}
         onChange={setTab}
       />
-      {next ? (
-        <>
-          <SectionTitle title={tab === 'upcoming' ? 'Next Session' : 'Sessions'} />
-          <BookingCard
-            booking={next}
-            highlight={tab === 'upcoming'}
-            expert={expertMap?.get(next.expertId)}
-          />
-        </>
-      ) : (
-        <Text style={styles.meta}>No {tab} sessions on this device.</Text>
-      )}
-      {rest.length > 0 ? (
-        <SectionTitle title={tab === 'upcoming' ? 'Other Upcoming Sessions' : 'More'} />
-      ) : null}
-      {rest.map((booking) => (
+      {items.length === 0 ? <Text style={styles.meta}>No {tab} requests on this device.</Text> : null}
+      {items.map((booking, index) => (
         <BookingCard
           key={booking.id}
           booking={booking}
+          highlight={tab === 'upcoming' && index === 0}
           expert={expertMap?.get(booking.expertId)}
         />
       ))}
+    </Card>
+  );
+}
+
+export function MyBookingsScreen() {
+  return (
+    <CustomerPage
+      nav="discover"
+      active="experts"
+      onBack={() => router.back()}
+      right={<IconButton icon="notifications-outline" label="Notifications" onPress={() => router.push('/notifications')} />}
+    >
+      <Heading>My Bookings</Heading>
+      <Subtitle>Sessions booked with YuktiOne experts on your account.</Subtitle>
+      <AccountBookings />
+      <DeviceBookings />
       <Pressable style={styles.bookBanner} onPress={() => router.push('/(tabs)/experts')}>
         <Ionicons name="calendar-outline" size={22} color={customer.teal} />
         <View style={{ flex: 1 }}>
@@ -941,6 +961,19 @@ const styles = StyleSheet.create({
   promoTitle: { fontFamily: customerFonts.bold, fontSize: 18, color: customer.navy },
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   link: { color: customer.teal, fontFamily: customerFonts.bold, fontSize: 13 },
+  categoryFilter: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: customer.mint,
+    borderWidth: 1,
+    borderColor: customer.teal,
+  },
+  categoryFilterText: { color: customer.teal, fontFamily: customerFonts.bold, fontSize: 13 },
   backdrop: { flex: 1, backgroundColor: 'rgba(16,32,48,0.45)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: customer.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, gap: 10, maxHeight: '88%' },
   sheetTitle: { fontFamily: customerFonts.bold, fontSize: 18, color: customer.navy },

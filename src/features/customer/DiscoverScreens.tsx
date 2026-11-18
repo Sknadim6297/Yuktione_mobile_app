@@ -24,7 +24,15 @@ import {
   toIsoDate,
   toolById,
 } from '@/features/customer/content';
-import { toolHref, toolVisual } from '@/features/customer/liveCatalog';
+import { openLiveTool, toolVisual } from '@/features/customer/liveCatalog';
+import { useAccountScope } from '@/features/customer/myspace/accountData';
+import {
+  AccountGratitude,
+  AccountJournal,
+  AccountMoodCheckin,
+  SignInToSave,
+} from '@/features/customer/myspace/AccountTools';
+import { EmptyNote, SourceTag } from '@/features/customer/myspace/parts';
 import { customerActions, useCustomerState } from '@/features/customer/store';
 import {
   ChipRow,
@@ -49,19 +57,6 @@ import { customer, customerFonts } from '@/theme';
 
 function openTool(id: string): void {
   router.push({ pathname: '/tools/[id]', params: { id } });
-}
-
-function openLiveTool(tool: ApiTool): void {
-  const href = toolHref(tool);
-  if (!href) {
-    Alert.alert(
-      tool.name,
-      tool.mobile_message ??
-        'This tool is available on the YuktiOne website. A dedicated mobile experience is not ready yet.',
-    );
-    return;
-  }
-  router.push(href);
 }
 
 function LiveToolTile({ tool, width }: { tool: ApiTool; width?: number }) {
@@ -197,124 +192,6 @@ export function AllToolsScreen() {
           </ScrollView>
         </View>
       ) : null}
-    </CustomerPage>
-  );
-}
-
-export function ExploreScreen() {
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<string>('all');
-  const liveEnabled = !FRONTEND_ONLY && isApiConfigured();
-
-  const categoriesQuery = useQuery({
-    queryKey: ['v1', 'tool-categories'],
-    queryFn: async () => {
-      const result = await fetchToolCategories();
-      if (!result.ok) throw new Error(result.message);
-      return result.categories;
-    },
-    enabled: liveEnabled,
-  });
-
-  const toolsQuery = useQuery({
-    queryKey: ['v1', 'tools', 'explore', query],
-    queryFn: async () => {
-      const result = await fetchTools({ q: query.trim() || undefined });
-      if (!result.ok) throw new Error(result.message);
-      return result.tools;
-    },
-    enabled: liveEnabled,
-  });
-
-  const liveCategories = categoriesQuery.data ?? [];
-  const filteredCategories = liveCategories.filter((category) => {
-    if (filter !== 'all' && category.slug !== filter) return false;
-    if (!query.trim()) return true;
-    return category.name.toLowerCase().includes(query.trim().toLowerCase());
-  });
-  const popular = (toolsQuery.data ?? []).slice(0, 6);
-  const featured = liveCategories[0];
-
-  return (
-    <CustomerPage
-      nav="discover"
-      active="explore"
-      onBack={() => router.back()}
-    >
-      <Heading>Explore</Heading>
-      <SearchField value={query} onChangeText={setQuery} placeholder="Search experts, tools, programmes..." />
-      <ChipRow
-        options={[
-          { id: 'all', label: 'All' },
-          ...liveCategories.map((item) => ({ id: item.slug, label: item.name })),
-        ]}
-        value={filter}
-        onChange={setFilter}
-      />
-      {categoriesQuery.isLoading || toolsQuery.isLoading ? (
-        <ActivityIndicator color={customer.teal} />
-      ) : null}
-      {featured ? (
-        <>
-          <SectionTitle title="Featured" />
-          <Pressable
-            style={styles.featured}
-            onPress={() =>
-              router.push({ pathname: '/categories/[slug]', params: { slug: featured.slug } })
-            }
-          >
-            <Image source={art.lake} style={styles.featuredImage} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.featuredTitle}>{featured.name}</Text>
-              <Text style={styles.featuredBody}>
-                {featured.description || 'Tools from the YuktiOne website registry'}
-              </Text>
-            </View>
-            <View style={styles.play}>
-              <Ionicons name="arrow-forward" size={16} color={customer.white} />
-            </View>
-          </Pressable>
-        </>
-      ) : null}
-      <SectionTitle title="Explore by Category" />
-      <View style={styles.gridTwo}>
-        {filteredCategories.map((category) => {
-          const visual = toolVisual({
-            id: category.id,
-            slug: category.slug,
-            name: category.name,
-            description: category.description ?? '',
-            access_type: 'free',
-            status: 'active',
-            display_order: category.display_order,
-            is_implemented: true,
-            can_launch_web: true,
-            mobile_ready: true,
-            category: { id: category.id, name: category.name, slug: category.slug },
-          });
-          return (
-            <Pressable
-              key={category.slug}
-              style={[styles.categoryTwo, { backgroundColor: visual.tint }]}
-              onPress={() =>
-                router.push({ pathname: '/categories/[slug]', params: { slug: category.slug } })
-              }
-            >
-              <Ionicons name={visual.icon} size={28} color={visual.ink} />
-              <Text style={styles.categoryTitle}>{category.name}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      {filteredCategories.length === 0 && !categoriesQuery.isLoading ? (
-        <Text style={styles.empty}>No categories match that search.</Text>
-      ) : null}
-      <SectionTitle title="Popular Tools" action="See All" onAction={() => router.push('/(tabs)/tools')} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        {popular.map((tool) => (
-          <LiveToolTile key={tool.slug} tool={tool} width={120} />
-        ))}
-      </ScrollView>
     </CustomerPage>
   );
 }
@@ -472,9 +349,13 @@ export function MoodResultScreen() {
   );
 }
 
+/** These save through the website's recorders; offline preview keeps the device-only runners. */
+const ACCOUNT_TOOL_IDS = new Set(['mood-check-in', 'journal', 'gratitude']);
+
 export function ToolRunnerScreen({ id }: { id: string }) {
   const tool = toolById(id);
   const state = useCustomerState();
+  const accountLive = useAccountScope().enabled;
   const [text, setText] = useState('');
   const [thanks, setThanks] = useState(['', '', '']);
   const [height, setHeight] = useState('');
@@ -508,6 +389,7 @@ export function ToolRunnerScreen({ id }: { id: string }) {
   }
 
   const saved = state.savedToolIds.includes(tool.id);
+  const accountTool = !FRONTEND_ONLY && ACCOUNT_TOOL_IDS.has(tool.id);
   const cups = state.waterDate === toIsoDate(new Date()) ? state.waterCups : 0;
 
   return (
@@ -530,7 +412,15 @@ export function ToolRunnerScreen({ id }: { id: string }) {
         {tool.price === 'free' ? 'Free' : 'Paid · payment API not connected'}
       </Text>
 
-      {tool.runner === 'mood' ? (
+      {accountTool ? (
+        accountLive ? (
+          tool.id === 'mood-check-in' ? <AccountMoodCheckin /> : tool.id === 'journal' ? <AccountJournal /> : <AccountGratitude />
+        ) : (
+          <SignInToSave what={tool.id === 'mood-check-in' ? 'check-in' : tool.id === 'journal' ? 'journal entry' : 'gratitude entry'} />
+        )
+      ) : null}
+
+      {tool.runner === 'mood' && !accountTool ? (
         <View style={styles.stack}>
           {(['happy', 'calm', 'okay', 'low', 'stressed'] as const).map((moodId) => {
             const mood = moodById(moodId);
@@ -544,8 +434,9 @@ export function ToolRunnerScreen({ id }: { id: string }) {
         </View>
       ) : null}
 
-      {tool.runner === 'journal' || tool.runner === 'note' ? (
+      {(tool.runner === 'journal' || tool.runner === 'note') && !accountTool ? (
         <View style={styles.stack}>
+          <SourceTag kind="device" />
           <TextInput
             value={text}
             onChangeText={setText}
@@ -569,7 +460,7 @@ export function ToolRunnerScreen({ id }: { id: string }) {
         </View>
       ) : null}
 
-      {tool.runner === 'gratitude' ? (
+      {tool.runner === 'gratitude' && !accountTool ? (
         <View style={styles.stack}>
           {thanks.map((line, index) => (
             <TextInput
@@ -654,9 +545,11 @@ export function ToolRunnerScreen({ id }: { id: string }) {
 }
 
 export function MyToolsScreen() {
+  const state = useCustomerState();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'mindfulness' | 'growth' | 'health' | 'daily'>('all');
-  const tools = TOOLS.filter((tool) => {
+  const saved = TOOLS.filter((tool) => state.savedToolIds.includes(tool.id));
+  const tools = saved.filter((tool) => {
     const text = `${tool.name} ${tool.blurb}`.toLowerCase().includes(query.trim().toLowerCase());
     if (!text) return false;
     if (filter === 'mindfulness') return tool.group === 'mind';
@@ -664,19 +557,19 @@ export function MyToolsScreen() {
     if (filter === 'health') return tool.filters.includes('health');
     if (filter === 'daily') return tool.group === 'daily';
     return true;
-  }).slice(0, 10);
+  });
 
   return (
     <CustomerPage
       nav="my-tools"
       active="tools"
       onBack={() => router.back()}
-      right={<IconButton icon="notifications-outline" label="Notifications" badge onPress={() => router.push('/(tabs)/bookings')} />}
+      right={<IconButton icon="notifications-outline" label="Notifications" onPress={() => router.push('/notifications')} />}
     >
       <View style={styles.heroRow}>
         <View style={{ flex: 1 }}>
           <Heading>My Tools</Heading>
-          <Subtitle>Simple, effective tools for your mental well-being, growth and daily life.</Subtitle>
+          <Subtitle>Tools you saved, kept on this device. Tap the bookmark on any tool to add it here.</Subtitle>
         </View>
         <Image source={art.lotus} style={styles.lotus} />
       </View>
@@ -692,7 +585,20 @@ export function MyToolsScreen() {
         value={filter}
         onChange={setFilter}
       />
-      <SectionTitle title={`Your Tools (${tools.length})`} action="Manage Tools →" onAction={() => router.push('/(tabs)/tools')} />
+      <SectionTitle title={`Saved tools (${tools.length})`} action="All tools →" onAction={() => router.push('/(tabs)/tools')} />
+      {tools.length === 0 ? (
+        <EmptyNote
+          icon="bookmark-outline"
+          title={saved.length ? 'No saved tools match' : 'No saved tools yet'}
+          body={
+            saved.length
+              ? 'Try a different search or filter.'
+              : 'Open any tool and tap the bookmark to keep it here for quick access.'
+          }
+          actionLabel="Browse all tools →"
+          onAction={() => router.push('/(tabs)/tools')}
+        />
+      ) : null}
       <View style={styles.pairGrid}>
         {tools.map((tool) => (
           <Pressable key={tool.id} style={[styles.pair, { backgroundColor: tool.tint }]} onPress={() => openTool(tool.id)}>
@@ -704,7 +610,7 @@ export function MyToolsScreen() {
       </View>
       <Pressable style={styles.promo} onPress={() => router.push('/progress')}>
         <Text style={styles.promoTitle}>Your Progress</Text>
-        <Text style={styles.promoBody}>Tools used, streaks and achievements.</Text>
+        <Text style={styles.promoBody}>Mood check-ins, streak, goals and programmes.</Text>
         <OutlineButton label="View Progress" onPress={() => router.push('/progress')} />
       </Pressable>
     </CustomerPage>

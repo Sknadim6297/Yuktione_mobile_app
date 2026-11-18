@@ -7,6 +7,9 @@ import {
 import { getAuthToken } from '@/services/api/tokenStorage';
 import type { ApiErrorBody, ApiResult, RequestOptions } from '@/services/api/types';
 
+/** Fail fast with a clear message instead of hanging when the server is unreachable. */
+const REQUEST_TIMEOUT_MS = 15_000;
+
 export class ApiClientError extends Error {
   readonly status: number;
   readonly body: ApiErrorBody;
@@ -83,12 +86,29 @@ export async function apiRequest<T>(
     }
   }
 
+  // Without a timeout an unreachable server (wrong IP, firewall, different Wi-Fi)
+  // leaves the UI waiting forever, which looks like "nothing happens".
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
+  const onExternalAbort = () => controller.abort();
+  if (options.signal) {
+    if (options.signal.aborted) {
+      controller.abort();
+    } else {
+      options.signal.addEventListener('abort', onExternalAbort);
+    }
+  }
+
   try {
     const response = await fetch(resolveUrl(options), {
       method: options.method ?? 'GET',
       headers,
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-      signal: options.signal,
+      signal: controller.signal,
     });
 
     const contentType = response.headers.get('content-type') ?? '';
@@ -114,6 +134,16 @@ export async function apiRequest<T>(
       data: payload as T,
     };
   } catch (error) {
+    if (timedOut) {
+      return {
+        ok: false,
+        status: 0,
+        error: {
+          message: `Cannot reach the YuktiOne server (${APP_CONFIG.apiBaseUrl}). Make sure the backend is running and your phone is on the same Wi-Fi as the computer, then try again.`,
+        },
+      };
+    }
+
     if (error instanceof Error && error.name === 'AbortError') {
       return {
         ok: false,
@@ -122,14 +152,20 @@ export async function apiRequest<T>(
       };
     }
 
-    const message =
+    const rawMessage =
       error instanceof Error ? error.message : 'Network request failed';
+    const message = /network request failed|failed to fetch|load failed/i.test(rawMessage)
+      ? `Cannot reach the YuktiOne server (${APP_CONFIG.apiBaseUrl}). Make sure the backend is running and your phone is on the same Wi-Fi as the computer.`
+      : rawMessage;
 
     return {
       ok: false,
       status: 0,
       error: { message },
     };
+  } finally {
+    clearTimeout(timeoutId);
+    options.signal?.removeEventListener('abort', onExternalAbort);
   }
 }
 

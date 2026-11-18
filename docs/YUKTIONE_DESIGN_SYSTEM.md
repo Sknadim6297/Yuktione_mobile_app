@@ -14,15 +14,15 @@ Locked brand colors must not be changed without explicit product approval.
 
 | Token | Hex | Usage |
 |-------|-----|--------|
-| Primary Eucalyptus | `#2F6F5E` | Primary CTAs, active dots, focus, success |
-| Eucalyptus dark | `#245748` | Pressed primary |
-| Eucalyptus soft | `#E4F0EB` | Soft fills / chips |
+| Primary Teal | `#36877F` | Primary CTAs, active dots, focus, success |
+| Teal dark | `#2B6D66` | Pressed primary |
+| Teal soft | `#E8F3F1` | Soft fills / chips |
 | Secondary Lavender | `#8B7BB8` | Secondary accents, pending status |
-| Lavender soft | `#EFEAF7` | Soft lavender fills |
-| Background Cream | `#F7F4EF` | Screen canvas |
+| Lavender soft | `#EFEBF8` | Soft lavender fills |
+| Background Cream | `#F8F5F0` | Screen canvas |
 | Cream dark | `#EFE9E0` | Muted surfaces |
-| Text Navy | `#1C2A3A` | Primary text, icons on cream |
-| Navy muted | `#4A5A6A` | Secondary text |
+| Text Navy | `#142B4D` | Primary text, icons on cream |
+| Navy muted | `#4A5A70` | Secondary text |
 
 Semantic aliases live in `src/theme/colors.ts` (`text`, `background`, `border`, `status`, `interactive`). Prefer those over hardcoding hex in screens.
 

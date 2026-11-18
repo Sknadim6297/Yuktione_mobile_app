@@ -16,6 +16,25 @@ export const WEBSITE_PATHS = {
    */
   customerBooking: '/user/booking',
   customerMyBookings: '/user/my-bookings',
+  /** Customer panel pages (website session required). */
+  customerDashboard: '/user/dashboard',
+  customerProfile: '/user/profile',
+  customerBilling: '/customer/billing',
+  customerReferEarn: '/customer/yukti-points',
+  customerSupportChat: '/user/admin-chat',
+  /** Psychology tools that save to the customer's account (mood_checkins, digital_journals, gratitude_journals). */
+  moodCheckin: '/tools/psychology/mood',
+  moodHistory: '/tools/psychology/mood/history',
+  journalHistory: '/tools/psychology/journal/history',
+  gratitudeHistory: '/tools/psychology/gratitude/history',
+  /** Public pages. */
+  contact: '/contact',
+  help: '/help',
+  privacy: '/privacy',
+  terms: '/terms',
 } as const;
+
+/** WhatsApp support number used by the website customer panel layout. */
+export const SUPPORT_WHATSAPP_URL = 'https://wa.me/+919147421560';
 
 export type WebsitePathKey = keyof typeof WEBSITE_PATHS;

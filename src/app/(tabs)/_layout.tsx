@@ -16,8 +16,8 @@ export default function CustomerTabsLayout() {
       <Tabs.Screen name="tools" options={{ title: 'Tools' }} />
       <Tabs.Screen name="experts" options={{ title: 'Experts' }} />
       <Tabs.Screen name="my-space" options={{ title: 'My Space' }} />
-      {/* Still routable from menu/notifications; not shown in bottom nav */}
-      <Tabs.Screen name="bookings" options={{ title: 'Bookings', href: null }} />
+      {/* Routable from My Space, menu and notifications. The visible five-tab bar is CustomerPage's own nav, so it never lists Bookings. */}
+      <Tabs.Screen name="bookings" options={{ title: 'Bookings' }} />
     </Tabs>
   );
 }

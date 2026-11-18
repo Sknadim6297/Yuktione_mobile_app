@@ -16,6 +16,8 @@ export type ApiTool = {
   name: string;
   description: string;
   icon?: string | null;
+  /** Website tool illustration (absolute URL), null when the website has none. */
+  image_url?: string | null;
   access_type: 'free' | 'paid' | string;
   status: string;
   status_label?: string;
@@ -67,6 +69,7 @@ export type ApiProgrammeEvent = {
   currency: string;
   show_on_homepage: boolean;
   card_image?: string | null;
+  card_image_url?: string | null;
   kind: 'website_event';
   enrolment_supported: boolean;
   progress_supported: boolean;
@@ -126,25 +129,38 @@ export async function fetchTool(
   return { ok: true, tool: result.data.tool };
 }
 
+/** Website "Explore by Need" category (ExploreCatalog::CATEGORIES). */
+export type ApiExpertCategory = {
+  slug: string;
+  label: string;
+  image_url?: string | null;
+};
+
 export async function fetchExperts(params?: {
   q?: string;
   specialty?: string;
+  /** ApiExpertCategory slug, filtered with the website's category rules. */
+  category?: string;
   featured?: boolean;
   limit?: number;
-}): Promise<{ ok: true; experts: ApiExpert[] } | { ok: false; message: string }> {
+}): Promise<
+  | { ok: true; experts: ApiExpert[]; categories: ApiExpertCategory[] }
+  | { ok: false; message: string }
+> {
   const search = new URLSearchParams();
   if (params?.q) search.set('q', params.q);
   if (params?.specialty) search.set('specialty', params.specialty);
+  if (params?.category) search.set('category', params.category);
   if (params?.featured) search.set('featured', '1');
   if (params?.limit) search.set('limit', String(params.limit));
   const qs = search.toString();
-  const result = await apiClient.get<{ status: string; experts: ApiExpert[] }>(
-    `/experts${qs ? `?${qs}` : ''}`,
-    false,
-    'v1',
-  );
+  const result = await apiClient.get<{
+    status: string;
+    experts: ApiExpert[];
+    categories?: ApiExpertCategory[];
+  }>(`/experts${qs ? `?${qs}` : ''}`, false, 'v1');
   if (!result.ok) return { ok: false, message: messageFrom(result) };
-  return { ok: true, experts: result.data.experts ?? [] };
+  return { ok: true, experts: result.data.experts ?? [], categories: result.data.categories ?? [] };
 }
 
 export async function fetchExpert(
@@ -163,6 +179,8 @@ export async function fetchExpert(
 
 export async function fetchProgrammeEvents(params?: {
   homepage?: boolean;
+  /** ApiExpertCategory slug, matched with the website's programme keywords. */
+  category?: string;
 }): Promise<
   | {
       ok: true;
@@ -171,7 +189,10 @@ export async function fetchProgrammeEvents(params?: {
     }
   | { ok: false; message: string }
 > {
-  const qs = params?.homepage ? '?homepage=1' : '';
+  const search = new URLSearchParams();
+  if (params?.homepage) search.set('homepage', '1');
+  if (params?.category) search.set('category', params.category);
+  const qs = search.toString() ? `?${search.toString()}` : '';
   const result = await apiClient.get<{
     status: string;
     events: ApiProgrammeEvent[];

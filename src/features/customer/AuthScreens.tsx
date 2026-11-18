@@ -138,7 +138,10 @@ export function SignInScreen() {
           style: 'destructive',
           onPress: () => {
             setBusy(true);
-            void finishLogin(true).finally(() => setBusy(false));
+            finishLogin(true).catch(() => {
+              setError('Something went wrong while signing in. Please try again.');
+              setBusy(false);
+            });
           },
         },
       ]);
@@ -176,8 +179,10 @@ export function SignInScreen() {
       );
       return;
     }
-    void finishLogin(false).finally(() => {
-      // busy cleared inside finishLogin except success navigation
+    finishLogin(false).catch(() => {
+      // Never leave the button stuck in the busy state if something unexpected throws.
+      setError('Something went wrong while signing in. Please try again.');
+      setBusy(false);
     });
   };
 
@@ -255,7 +260,7 @@ export function SignInScreen() {
             </Pressable>
 
             <TealButton
-              label="Sign In"
+              label={busy ? 'Signing in…' : 'Sign In'}
               icon="arrow-forward"
               iconPosition="end"
               onPress={submit}

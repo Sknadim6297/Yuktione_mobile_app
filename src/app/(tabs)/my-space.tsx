@@ -1,6 +1,6 @@
-import { MySpaceScreen } from '@/features/customer/PersonalScreens';
+import { MySpaceScreen } from '@/features/customer/myspace/MySpaceScreen';
 
-/** Reference screen 20 — My Space. */
+/** My Space — customer dashboard backed by /api/v1/profile plus device-saved items. */
 export default function MySpaceTabRoute() {
   return <MySpaceScreen />;
 }

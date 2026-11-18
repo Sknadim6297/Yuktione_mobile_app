@@ -1,517 +1,533 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { PROGRAMMES, TOOLS, art, programmeById, toIsoDate } from '@/features/customer/content';
-import { customerActions, useCustomerState } from '@/features/customer/store';
+import { MOODS, art, formatWeekdayDate, programmeById, toIsoDate } from '@/features/customer/content';
+import {
+  formatStamp,
+  useAccountScope,
+  useActivitySummary,
+  useRecentEntries,
+  type RangeDays,
+} from '@/features/customer/myspace/accountData';
+import { Card, EmptyNote, StatTile, myspace } from '@/features/customer/myspace/parts';
+import { useCustomerState, type MoodPoint } from '@/features/customer/store';
 import {
   ChipRow,
   CustomerPage,
   DonutChart,
   Heading,
   IconButton,
-  OutlineButton,
-  SectionTitle,
   Subtitle,
-  TealButton,
   TrendChart,
 } from '@/features/customer/ui';
-import { isApiConfigured } from '@/constants/config';
-import { FRONTEND_ONLY } from '@/constants/frontendOnly';
-import type { ApiUser } from '@/services/api/auth';
-import { fetchProfile, updateProfile } from '@/services/api/profile';
+import type { ActivitySummary, MoodTone } from '@/services/api/mySpace';
+import { openWebsitePath } from '@/services/website/openWebsite';
 import { customer, customerFonts } from '@/theme';
 
-type ProfileDraft = {
-  name: string;
-  email: string;
-  phone: string;
-  city: string;
-  state: string;
-  zip: string;
-  address: string;
-};
+type Range = '7' | '30' | '90';
 
-function draftFromUser(user: ApiUser): ProfileDraft {
-  const profile = user.customer_profile;
-  return {
-    name: profile?.name || user.name || '',
-    email: profile?.email || user.email || '',
-    phone: profile?.phone || user.phone || '',
-    city: profile?.city || '',
-    state: profile?.state || '',
-    zip: profile?.zip_code || '',
-    address: profile?.address || '',
-  };
-}
-
-const USAGE = [
-  { label: 'Mood Check-in', value: 4, color: '#1F9D6A' },
-  { label: 'Journal', value: 3, color: '#6E5BD6' },
-  { label: 'Tarot', value: 2, color: '#E0A100' },
-  { label: 'Others', value: 3, color: '#3D6FE0' },
+const RANGE_OPTIONS: { id: Range; label: string }[] = [
+  { id: '7', label: '7 Days' },
+  { id: '30', label: '30 Days' },
+  { id: '90', label: '90 Days' },
 ];
 
-export function MySpaceScreen() {
-  const state = useCustomerState();
-  const queryClient = useQueryClient();
-  const [tab, setTab] = useState<'overview' | 'tools' | 'progress' | 'favourites' | 'saved'>('overview');
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState<ProfileDraft | null>(null);
-  const liveEnabled = !FRONTEND_ONLY && isApiConfigured();
+/** Colours for the website's mood keys (MoodCheckin::options()). */
+const ACCOUNT_MOOD_COLORS: Record<string, string> = {
+  'very-happy': customer.greenInk,
+  good: customer.teal,
+  neutral: customer.goldInk,
+  sad: customer.blueInk,
+  stressed: customer.pinkInk,
+};
 
-  const profileQuery = useQuery({
-    queryKey: ['v1', 'profile'],
-    queryFn: async () => {
-      const result = await fetchProfile();
-      if (!result.ok) throw new Error(result.message);
-      customerActions.signInFromApi(result.user);
-      return result.user;
-    },
-    enabled: liveEnabled,
-  });
+const TONE_COLORS: Record<MoodTone, string> = {
+  positive: customer.greenInk,
+  neutral: customer.goldInk,
+  difficult: customer.pinkInk,
+};
 
-  const today = toIsoDate(new Date());
-  const mood = state.moodHistory.find((point) => point.date === today) ?? state.moodHistory[state.moodHistory.length - 1];
-  const savedTools = TOOLS.filter((tool) => state.savedToolIds.includes(tool.id));
-  const savedProgrammes = PROGRAMMES.filter((programme) => state.savedProgrammeIds.includes(programme.id));
-  const profile = profileQuery.data;
+function inRange(history: MoodPoint[], range: Range): MoodPoint[] {
+  const cutoff = new Date();
+  cutoff.setHours(0, 0, 0, 0);
+  cutoff.setDate(cutoff.getDate() - (Number(range) - 1));
+  const from = toIsoDate(cutoff);
+  return history.filter((point) => point.date >= from);
+}
 
-  const beginEdit = () => {
-    if (!profile) return;
-    setDraft(draftFromUser(profile));
-    setEditing(true);
-  };
+function plural(count: number, word: string): string {
+  return `${count} ${word}${count === 1 ? '' : 's'}`;
+}
 
-  const cancelEdit = () => {
-    setDraft(null);
-    setEditing(false);
-  };
+const notificationsButton = (
+  <IconButton icon="notifications-outline" label="Notifications" onPress={() => router.push('/notifications')} />
+);
 
-  const saveProfile = async () => {
-    if (saving || !draft) return;
-    setSaving(true);
-    try {
-      const result = await updateProfile({
-        name: draft.name.trim(),
-        email: draft.email.trim(),
-        phone: draft.phone.trim() || undefined,
-        city: draft.city.trim(),
-        state: draft.state.trim(),
-        zip_code: draft.zip.trim(),
-        address: draft.address.trim() || undefined,
-      });
-      if (!result.ok) {
-        Alert.alert('Could not update profile', result.message);
-        return;
-      }
-      customerActions.signInFromApi(result.user);
-      await queryClient.invalidateQueries({ queryKey: ['v1', 'profile'] });
-      setDraft(null);
-      setEditing(false);
-      Alert.alert('Profile updated', result.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+function useAccountSummary(range: Range) {
+  const { enabled } = useAccountScope();
+  const days = Number(range) as RangeDays;
+  return { enabled, days, query: useActivitySummary(days) };
+}
 
-  return (
-    <CustomerPage
-      nav="space"
-      active="my-space"
-      onBack={() => router.back()}
-      right={
-        <>
-          <IconButton icon="calendar-outline" label="Bookings" onPress={() => router.push('/(tabs)/bookings')} />
-          <IconButton icon="notifications-outline" label="Notifications" onPress={() => router.push('/(tabs)/bookings')} />
-          <IconButton icon="settings-outline" label="Menu" onPress={() => router.push('/reports')} />
-        </>
-      }
-    >
-      <View style={styles.heroRow}>
-        <View style={{ flex: 1 }}>
-          <Heading>My Space</Heading>
-          <Subtitle>Your personal space for reflection, progress and well-being.</Subtitle>
-        </View>
-        <Image source={art.lake} style={styles.heroArt} />
-      </View>
-      <ChipRow
-        options={[
-          { id: 'overview', label: 'Overview', icon: 'grid-outline' },
-          { id: 'tools', label: 'My Tools', icon: 'leaf-outline' },
-          { id: 'progress', label: 'My Progress', icon: 'stats-chart-outline' },
-          { id: 'favourites', label: 'Favourites', icon: 'heart-outline' },
-          { id: 'saved', label: 'Saved', icon: 'bookmark-outline' },
-        ]}
-        value={tab}
-        onChange={setTab}
+function AccountUnavailable({ loading, error, onRetry }: { loading: boolean; error?: Error | null; onRetry: () => void }) {
+  if (loading) return <ActivityIndicator color={customer.teal} />;
+  if (error) {
+    return (
+      <EmptyNote
+        icon="cloud-offline-outline"
+        title="Could not load your account activity"
+        body={error.message}
+        actionLabel="Try again"
+        onAction={onRetry}
       />
-      {tab === 'overview' ? (
-        <>
-          <SectionTitle
-            title="Your Account"
-            action={editing ? 'Cancel' : 'Edit'}
-            onAction={() => (editing ? cancelEdit() : beginEdit())}
-          />
-          {profileQuery.isLoading ? <ActivityIndicator color={customer.teal} /> : null}
-          {profileQuery.isError ? (
-            <Text style={styles.body}>{profileQuery.error.message}</Text>
-          ) : null}
-          {profile ? (
-            editing && draft ? (
-              <View style={styles.profileForm}>
-                <TextInput style={styles.input} value={draft.name} onChangeText={(name) => setDraft({ ...draft, name })} placeholder="Full name" placeholderTextColor={customer.muted} />
-                <TextInput style={styles.input} value={draft.email} onChangeText={(email) => setDraft({ ...draft, email })} placeholder="Email" autoCapitalize="none" keyboardType="email-address" placeholderTextColor={customer.muted} />
-                <TextInput style={styles.input} value={draft.phone} onChangeText={(phone) => setDraft({ ...draft, phone })} placeholder="Phone" keyboardType="phone-pad" placeholderTextColor={customer.muted} />
-                <TextInput style={styles.input} value={draft.city} onChangeText={(city) => setDraft({ ...draft, city })} placeholder="City" placeholderTextColor={customer.muted} />
-                <TextInput style={styles.input} value={draft.state} onChangeText={(next) => setDraft({ ...draft, state: next })} placeholder="State" placeholderTextColor={customer.muted} />
-                <TextInput style={styles.input} value={draft.zip} onChangeText={(zip) => setDraft({ ...draft, zip })} placeholder="ZIP / PIN" placeholderTextColor={customer.muted} />
-                <TextInput style={styles.input} value={draft.address} onChangeText={(address) => setDraft({ ...draft, address })} placeholder="Address" placeholderTextColor={customer.muted} />
-                <TealButton label={saving ? 'Saving…' : 'Save profile'} onPress={() => void saveProfile()} disabled={saving} />
-              </View>
-            ) : (
-              <View style={styles.profileCard}>
-                <Text style={styles.title}>{profile.name}</Text>
-                <Text style={styles.body}>{profile.email}</Text>
-                <Text style={styles.body}>{profile.phone || 'No phone on file'}</Text>
-                <Text style={styles.meta}>
-                  {[profile.customer_profile?.city, profile.customer_profile?.state, profile.customer_profile?.zip_code]
-                    .filter(Boolean)
-                    .join(', ') || 'City / state not set yet'}
-                </Text>
-              </View>
-            )
-          ) : null}
-          <SectionTitle title="Today's Check-In" action="Complete your daily wellness ritual." />
-          <View style={styles.checkin}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>How are you feeling today?</Text>
-              <Text style={styles.body}>Complete a quick mood check-in.</Text>
-            </View>
-            <TealButton label="Check in Now" icon="add" onPress={() => router.push('/(tabs)/home')} />
-          </View>
-          <Text style={styles.section}>Your Wellness Snapshot</Text>
-          <View style={styles.stats}>
-            <Stat label="Mood" value={mood ? mood.mood : '—'} tint={customer.green} />
-            <Stat label="Streak" value="5 Days" tint={customer.mint} />
-            <Stat label="Tools Completed" value="12" tint="#F1ECFF" />
-            <Stat label="Programmes" value={`${state.enrollments.length} Enrolled`} tint="#F1ECFF" />
-          </View>
-          <SectionTitle title="Your Recent Activity" action="View All →" onAction={() => setTab('progress')} />
-          {state.activities.slice(0, 3).map((activity) => (
-            <View key={activity.id} style={styles.activity}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.title}>{activity.title}</Text>
-                <Text style={styles.body}>{activity.detail}</Text>
-              </View>
-              <Text style={styles.meta}>{activity.at}</Text>
-            </View>
-          ))}
-          <SectionTitle title="Your Goals" action="Manage Goals →" onAction={() => router.push('/tools/goal-tracker')} />
-          {state.goals.map((goal) => (
-            <View key={goal.id} style={styles.goal}>
-              <View style={styles.goalTop}>
-                <Text style={styles.title}>{goal.title}</Text>
-                <Text style={styles.meta}>{goal.done} / {goal.total} Days</Text>
-              </View>
-              <View style={styles.track}><View style={[styles.fill, { width: `${(goal.done / goal.total) * 100}%` }]} /></View>
-            </View>
-          ))}
-        </>
-      ) : null}
-      {tab === 'tools' ? (
-        savedTools.length ? savedTools.map((tool) => (
-          <Pressable key={tool.id} onPress={() => router.push({ pathname: '/tools/[id]', params: { id: tool.id } })}>
-            <Text style={styles.title}>{tool.name}</Text>
-            <Text style={styles.body}>{tool.blurb}</Text>
-          </Pressable>
-        )) : <Text style={styles.body}>Save a tool from All Tools to see it here.</Text>
-      ) : null}
-      {tab === 'progress' ? <TealButton label="Open My Progress" onPress={() => router.push('/progress')} /> : null}
-      {tab === 'favourites' ? <Text style={styles.body}>{state.favouriteExpertIds.length ? state.favouriteExpertIds.join(', ') : 'No favourite experts yet.'}</Text> : null}
-      {tab === 'saved' ? (
-        savedProgrammes.length ? savedProgrammes.map((programme) => (
-          <Pressable key={programme.id} onPress={() => router.push({ pathname: '/programmes/[id]', params: { id: programme.id } })}>
-            <Text style={styles.title}>{programme.title}</Text>
-          </Pressable>
-        )) : <Text style={styles.body}>No saved programmes yet.</Text>
-      ) : null}
-    </CustomerPage>
+    );
+  }
+  return (
+    <EmptyNote
+      icon="cloud-offline-outline"
+      title="Not connected to your account"
+      body="Sign in to the YuktiOne server to see the activity saved on your account."
+    />
   );
 }
 
-function Stat({ label, value, tint }: { label: string; value: string; tint: string }) {
+function AccountStats({ summary }: { summary: ActivitySummary }) {
   return (
-    <View style={[styles.stat, { backgroundColor: tint }]}>
-      <Text style={styles.meta}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
+    <View style={myspace.grid}>
+      <StatTile icon="happy-outline" value={String(summary.mood.count)} label="Mood check-ins" tint={customer.green} ink={customer.greenInk} />
+      <StatTile icon="calendar-outline" value={plural(summary.mood.active_days, 'day')} label="With a mood check-in" tint={customer.sky} ink={customer.skyInk} />
+      <StatTile icon="book-outline" value={String(summary.journal.count)} label="Journal entries" tint={customer.lavender} ink={customer.lavenderInk} />
+      <StatTile icon="sunny-outline" value={String(summary.gratitude.count)} label="Gratitude entries" tint={customer.gold} ink={customer.goldInk} />
     </View>
+  );
+}
+
+function openMoodCheckin(): void {
+  router.push({ pathname: '/tools/[id]', params: { id: 'mood-check-in' } });
+}
+
+function NoAccountMoods({ days }: { days: number }) {
+  return (
+    <EmptyNote
+      icon="happy-outline"
+      title={`No mood check-ins on your account in the last ${days} days`}
+      body="Mood check-ins saved in the app or on the YuktiOne website appear here."
+      actionLabel="Do a mood check-in →"
+      onAction={openMoodCheckin}
+    />
+  );
+}
+
+function AccountMoodDistribution({ summary, days }: { summary: ActivitySummary; days: number }) {
+  const segments = summary.mood.distribution
+    .filter((item) => item.count > 0)
+    .map((item) => ({
+      label: item.label,
+      value: item.count,
+      color: ACCOUNT_MOOD_COLORS[item.key] ?? TONE_COLORS[item.tone],
+    }));
+  if (!segments.length) return <NoAccountMoods days={days} />;
+  return (
+    <View style={styles.donutRow}>
+      <DonutChart segments={segments} center="Check-ins" />
+      <View style={styles.legend}>
+        {segments.map((segment) => (
+          <View key={segment.label} style={styles.legendRow}>
+            <View style={[styles.dot, { backgroundColor: segment.color }]} />
+            <Text style={[myspace.body, styles.grow]}>{segment.label}</Text>
+            <Text style={myspace.strong}>{segment.value}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function AccountDailyLog({ summary, days }: { summary: ActivitySummary; days: number }) {
+  const labels = new Map(summary.mood.distribution.map((item) => [item.key, item.label]));
+  const recent = [...summary.mood.daily].reverse().slice(0, 7);
+  if (!recent.length) return <NoAccountMoods days={days} />;
+  return (
+    <View>
+      {recent.map((day, index) => (
+        <View key={day.date} style={[styles.logRow, index < recent.length - 1 && styles.logDivider]}>
+          <View style={[styles.dot, { backgroundColor: ACCOUNT_MOOD_COLORS[day.mood_key] ?? customer.muted }]} />
+          <Text style={[myspace.body, styles.grow]}>{formatWeekdayDate(day.date)}</Text>
+          <Text style={myspace.strong}>{labels.get(day.mood_key) ?? day.mood_key}</Text>
+          {day.count > 1 ? <Text style={myspace.meta}>+{day.count - 1} more</Text> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function ProgrammeProgressList() {
+  const state = useCustomerState();
+  const rows = state.enrollments
+    .map((enrollment) => ({ enrollment, programme: programmeById(enrollment.programmeId) }))
+    .filter((row): row is { enrollment: typeof row.enrollment; programme: NonNullable<typeof row.programme> } =>
+      Boolean(row.programme),
+    );
+
+  if (!rows.length) {
+    return (
+      <EmptyNote
+        icon="layers-outline"
+        title="No programmes started"
+        body="Start a guided programme and your day-by-day progress shows here."
+        actionLabel="Browse programmes →"
+        onAction={() => router.push('/programmes')}
+      />
+    );
+  }
+
+  return (
+    <>
+      {rows.map(({ enrollment, programme }) => {
+        const percent = Math.round((enrollment.completedDays.length / programme.plan.length) * 100);
+        return (
+          <Pressable
+            key={programme.id}
+            accessibilityRole="button"
+            style={styles.programme}
+            onPress={() => router.push({ pathname: '/programmes/[id]/learn', params: { id: programme.id } })}
+          >
+            <Image source={programme.image} style={styles.programmeImage} />
+            <View style={styles.grow}>
+              <Text style={myspace.strong} numberOfLines={1}>{programme.title}</Text>
+              <Text style={myspace.meta}>
+                {enrollment.completedDays.length} of {programme.plan.length} days done
+              </Text>
+              <View style={styles.track}>
+                <View style={[styles.fill, { width: `${percent}%` }]} />
+              </View>
+            </View>
+            <Text style={styles.percent}>{percent}%</Text>
+          </Pressable>
+        );
+      })}
+    </>
+  );
+}
+
+function MoodTrend({ history, range }: { history: MoodPoint[]; range: Range }) {
+  if (history.length < 2) {
+    return (
+      <EmptyNote
+        icon="pulse-outline"
+        title={history.length === 1 ? 'One mood tap in this period' : `No mood taps in the last ${range} days`}
+        body="The trend line appears after two quick mood taps from Home."
+        actionLabel="Check in now →"
+        onAction={() => router.push('/(tabs)/home')}
+      />
+    );
+  }
+  return (
+    <TrendChart
+      values={history.map((point) => point.score)}
+      labels={history.map((point) => point.date.slice(8))}
+    />
   );
 }
 
 export function ProgressScreen() {
   const state = useCustomerState();
-  const [range, setRange] = useState<'7' | '30' | '90'>('7');
-  const history = state.moodHistory.slice(range === '7' ? -7 : range === '30' ? -30 : -90);
+  const [range, setRange] = useState<Range>('7');
+  const history = inRange(state.moodHistory, range);
+  const deviceDays = new Set(history.map((point) => point.date)).size;
+  const account = useAccountSummary(range);
+  const summary = account.query.data;
+
   return (
-    <CustomerPage
-      nav="progress"
-      active="progress"
-      onBack={() => router.back()}
-      right={
-        <>
-          <IconButton icon="calendar-outline" label="Bookings" onPress={() => router.push('/(tabs)/bookings')} />
-          <IconButton icon="notifications-outline" label="Notifications" onPress={() => router.push('/reports')} />
-          <IconButton icon="settings-outline" label="Reports" onPress={() => router.push('/reports')} />
-        </>
-      }
-    >
+    <CustomerPage nav="progress" active="progress" onBack={() => router.back()} right={notificationsButton}>
       <View style={styles.heroRow}>
-        <View style={{ flex: 1 }}>
+        <View style={styles.grow}>
           <Heading>My Progress</Heading>
-          <Subtitle>Track your journey, build healthy habits and see your growth over time.</Subtitle>
+          <Subtitle>Activity from your YuktiOne account, plus what is saved on this device.</Subtitle>
         </View>
         <Image source={art.dawn} style={styles.heroArt} />
       </View>
-      <ChipRow
-        options={[
-          { id: 'overview', label: 'Overview', icon: 'stats-chart-outline' },
-          { id: 'mood', label: 'Mood' },
-          { id: 'habits', label: 'Habits' },
-          { id: 'programmes', label: 'Programmes' },
-          { id: 'achievements', label: 'Achievements' },
-        ]}
-        value="overview"
-        onChange={() => undefined}
-      />
-      <View style={styles.stats}>
-        <Stat label="Days Active" value="12" tint={customer.mint} />
-        <Stat label="Current Streak" value="5 Days" tint="#FFF1E4" />
-        <Stat label="Programmes Enrolled" value={`${state.enrollments.length}`} tint="#F1ECFF" />
-        <Stat label="Achievements" value="7" tint="#FFF6DE" />
-      </View>
-      <SectionTitle title="Your Mood Trend" />
-      <ChipRow
-        options={[{ id: '7', label: '7 Days' }, { id: '30', label: '30 Days' }, { id: '90', label: '90 Days' }]}
-        value={range}
-        onChange={setRange}
-      />
-      <TrendChart values={history.map((point) => point.score)} labels={history.map((point) => point.date.slice(8))} />
-      <View style={styles.split}>
-        <View style={styles.panel}>
-          <Text style={styles.title}>Goals Progress</Text>
-          {state.goals.map((goal) => (
-            <View key={goal.id}>
-              <Text style={styles.body}>{goal.title}</Text>
-              <Text style={styles.meta}>{goal.done} / {goal.total} Days</Text>
-              <View style={styles.track}><View style={[styles.fill, { width: `${(goal.done / goal.total) * 100}%` }]} /></View>
-            </View>
-          ))}
+
+      <ChipRow options={RANGE_OPTIONS} value={range} onChange={setRange} />
+
+      <Card
+        title={`Your account · last ${range} days`}
+        source="account"
+        action={summary ? 'History ↗' : undefined}
+        onAction={() => void openWebsitePath('moodHistory')}
+      >
+        {account.enabled && summary ? (
+          <>
+            <AccountStats summary={summary} />
+            <Text style={styles.subhead}>Recent days</Text>
+            <AccountDailyLog summary={summary} days={account.days} />
+            <Text style={myspace.meta}>Days are counted in India time, the same as the website.</Text>
+          </>
+        ) : (
+          <AccountUnavailable
+            loading={account.enabled && account.query.isLoading}
+            error={account.enabled ? account.query.error : null}
+            onRetry={() => void account.query.refetch()}
+          />
+        )}
+      </Card>
+
+      <Card title="On this device" source="device">
+        <View style={myspace.grid}>
+          <StatTile icon="happy-outline" value={String(history.length)} label={`Mood taps · ${range} days`} tint={customer.green} ink={customer.greenInk} />
+          <StatTile icon="calendar-outline" value={plural(deviceDays, 'day')} label="With a mood tap" tint={customer.peach} ink={customer.peachInk} />
+          <StatTile icon="layers-outline" value={String(state.enrollments.length)} label="Programmes started" tint={customer.lavender} ink={customer.lavenderInk} />
+          <StatTile icon="locate-outline" value={String(state.goals.length)} label="Goals" tint={customer.mint} ink={customer.teal} />
         </View>
-        <View style={styles.panel}>
-          <Text style={styles.title}>Tools Usage</Text>
-          <DonutChart segments={USAGE} center="Uses" />
-          {USAGE.map((item) => (
-            <Text key={item.label} style={styles.meta}>{item.label} {item.value}</Text>
-          ))}
-        </View>
-      </View>
-      <SectionTitle title="Programme Progress" action="View All →" onAction={() => router.push('/programmes')} />
-      {state.enrollments.map((enrollment) => {
-        const programme = programmeById(enrollment.programmeId);
-        if (!programme) return null;
-        const percent = Math.round((enrollment.completedDays.length / programme.plan.length) * 100);
-        return (
-          <Pressable key={enrollment.programmeId} style={styles.activity} onPress={() => router.push({ pathname: '/programmes/[id]/learn', params: { id: programme.id } })}>
-            <Image source={programme.image} style={styles.mini} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>{programme.title}</Text>
-              <Text style={styles.meta}>Day {enrollment.completedDays.length} of {programme.days}</Text>
-            </View>
-            <Text style={styles.price}>{percent}%</Text>
-          </Pressable>
-        );
-      })}
-      <Text style={styles.section}>Achievements (7)</Text>
-      <View style={styles.stats}>
-        {['Getting Started', '7-Day Streak', 'Mindful Explorer'].map((label) => (
-          <View key={label} style={styles.badge}><Text style={styles.meta}>{label}</Text></View>
-        ))}
-      </View>
-      <View style={styles.note}>
-        <Text style={styles.title}>You&apos;re making great progress!</Text>
-        <Text style={styles.body}>Keep going — small, consistent steps create big change.</Text>
-      </View>
+      </Card>
+
+      <Card title="Mood taps on this device" source="device">
+        <MoodTrend history={history} range={range} />
+      </Card>
+
+      <Card title="Goals" source="device" action="Manage →" onAction={() => router.push('/tools/goal-tracker')}>
+        {state.goals.length ? (
+          state.goals.map((goal) => {
+            const percent = goal.total ? Math.min(100, Math.round((goal.done / goal.total) * 100)) : 0;
+            return (
+              <View key={goal.id} style={styles.goal}>
+                <View style={styles.goalTop}>
+                  <Text style={myspace.strong} numberOfLines={1}>{goal.title}</Text>
+                  <Text style={myspace.meta}>{goal.done} / {goal.total} days</Text>
+                </View>
+                <View style={styles.track}>
+                  <View style={[styles.fill, { width: `${percent}%` }]} />
+                </View>
+              </View>
+            );
+          })
+        ) : (
+          <EmptyNote
+            icon="locate-outline"
+            title="No goals yet"
+            body="Set a small daily goal with the Goal Tracker tool."
+            actionLabel="Open Goal Tracker →"
+            onAction={() => router.push('/tools/goal-tracker')}
+          />
+        )}
+      </Card>
+
+      <Card title="Programme progress" source="device" action="All programmes →" onAction={() => router.push('/programmes')}>
+        <ProgrammeProgressList />
+      </Card>
     </CustomerPage>
+  );
+}
+
+function RecentAccountEntries({ days }: { days: RangeDays }) {
+  const { moods, journal, gratitude } = useRecentEntries(days);
+  const loading = moods.isLoading || journal.isLoading || gratitude.isLoading;
+  const error = moods.error ?? journal.error ?? gratitude.error;
+  if (loading || error) {
+    return (
+      <AccountUnavailable
+        loading={loading}
+        error={error}
+        onRetry={() => {
+          void moods.refetch();
+          void journal.refetch();
+          void gratitude.refetch();
+        }}
+      />
+    );
+  }
+
+  const rows = [
+    ...(moods.data?.entries ?? []).map((entry) => ({
+      key: `mood-${entry.id}`,
+      kind: 'Mood check-in',
+      title: entry.mood_label ?? entry.mood_key,
+      detail: entry.emotions.map((emotion) => emotion.label).join(', ') || entry.reflection,
+      at: entry.checked_in_at,
+    })),
+    ...(journal.data?.entries ?? []).map((entry) => ({
+      key: `journal-${entry.id}`,
+      kind: 'Journal',
+      title: entry.title || entry.prompt_label || 'Journal entry',
+      detail: entry.excerpt,
+      at: entry.written_at,
+    })),
+    ...(gratitude.data?.entries ?? []).map((entry) => ({
+      key: `gratitude-${entry.id}`,
+      kind: 'Gratitude',
+      title: entry.answers[0]?.label ?? 'Gratitude entry',
+      detail: entry.answers[0]?.excerpt ?? null,
+      at: entry.written_at,
+    })),
+  ].sort((a, b) => b.at.localeCompare(a.at));
+
+  if (!rows.length) {
+    return (
+      <EmptyNote
+        icon="document-text-outline"
+        title={`Nothing written in the last ${days} days`}
+        body="Mood check-ins, journal and gratitude entries saved in the app or on the YuktiOne website appear here."
+      />
+    );
+  }
+
+  return (
+    <View>
+      {rows.slice(0, 6).map((row, index, list) => (
+        <View key={row.key} style={[styles.entry, index < list.length - 1 && styles.logDivider]}>
+          <Text style={styles.entryKind}>{row.kind} · {formatStamp(row.at)}</Text>
+          <Text style={myspace.strong} numberOfLines={1}>{row.title}</Text>
+          {row.detail ? <Text style={myspace.body} numberOfLines={2}>{row.detail}</Text> : null}
+        </View>
+      ))}
+      <View style={styles.historyLinks}>
+        <Pressable accessibilityRole="button" onPress={() => void openWebsitePath('moodHistory')} hitSlop={6}>
+          <Text style={styles.link}>Mood history ↗</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => void openWebsitePath('journalHistory')} hitSlop={6}>
+          <Text style={styles.link}>Journal ↗</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => void openWebsitePath('gratitudeHistory')} hitSlop={6}>
+          <Text style={styles.link}>Gratitude ↗</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
 export function ReportsScreen() {
   const state = useCustomerState();
-  const [range, setRange] = useState<'7' | '30' | '90' | 'custom'>('7');
-  const [metric, setMetric] = useState<'mood' | 'energy' | 'stress' | 'focus'>('mood');
-  const history = state.moodHistory.slice(-7);
+  const [range, setRange] = useState<Range>('7');
+  const history = inRange(state.moodHistory, range);
+  const account = useAccountSummary(range);
+  const summary = account.query.data;
   const average = history.length
     ? (history.reduce((sum, point) => sum + point.score, 0) / history.length).toFixed(1)
-    : '—';
-  const stress = programmeById('stress-relief-7');
+    : null;
+  const moodSegments = MOODS.map((mood) => ({
+    label: mood.label,
+    value: history.filter((point) => point.mood === mood.id).length,
+    color: mood.ink,
+  })).filter((segment) => segment.value > 0);
+  const nextProgramme = state.enrollments
+    .map((enrollment) => ({ enrollment, programme: programmeById(enrollment.programmeId) }))
+    .find(({ enrollment, programme }) => programme && enrollment.completedDays.length < programme.plan.length);
+
   return (
-    <CustomerPage
-      nav="reports"
-      active="reports"
-      onBack={() => router.back()}
-      right={
-        <>
-          <IconButton icon="download-outline" label="Download report" onPress={() => Alert.alert('Download unavailable', 'A report file is not generated until the reports API exists. Nothing was downloaded.')} />
-          <IconButton icon="calendar-outline" label="Custom range" onPress={() => setRange('custom')} />
-        </>
-      }
-    >
+    <CustomerPage nav="reports" active="reports" onBack={() => router.back()} right={notificationsButton}>
       <View style={styles.heroRow}>
-        <View style={{ flex: 1 }}>
+        <View style={styles.grow}>
           <Heading>Reports</Heading>
-          <Subtitle>Your wellness insights, trends and personal growth report.</Subtitle>
+          <Subtitle>Insights from your YuktiOne account, with device-only data shown separately.</Subtitle>
         </View>
         <Image source={art.lotus} style={styles.heroArt} />
       </View>
-      <ChipRow
-        options={[
-          { id: 'overview', label: 'Overview' },
-          { id: 'mood', label: 'Mood' },
-          { id: 'habits', label: 'Habits' },
-          { id: 'tools', label: 'Tools' },
-          { id: 'programmes', label: 'Programmes' },
-        ]}
-        value="overview"
-        onChange={() => undefined}
-      />
-      <ChipRow
-        options={[
-          { id: '7', label: '7 Days' },
-          { id: '30', label: '30 Days' },
-          { id: '90', label: '90 Days' },
-          { id: 'custom', label: 'Custom' },
-        ]}
-        value={range}
-        onChange={setRange}
-      />
-      <Text style={styles.meta}>{range === 'custom' ? 'Choose dates when the reports API is connected.' : `Showing the last ${range} days saved on this device.`}</Text>
-      <Text style={styles.section}>Wellness Summary</Text>
-      <View style={styles.stats}>
-        <Stat label="Avg. Mood" value={`${average}/10`} tint={customer.green} />
-        <Stat label="Tools Used" value={`${state.savedToolIds.length || 12}`} tint="#F1ECFF" />
-        <Stat label="Active Days" value={`${history.length}`} tint={customer.blue} />
-        <Stat label="Achievements" value="3" tint="#FFF6DE" />
-      </View>
-      <SectionTitle title="Mood Trend" />
-      <ChipRow
-        options={[
-          { id: 'mood', label: 'Mood' },
-          { id: 'energy', label: 'Energy' },
-          { id: 'stress', label: 'Stress' },
-          { id: 'focus', label: 'Focus' },
-        ]}
-        value={metric}
-        onChange={setMetric}
-      />
-      {metric === 'mood' ? (
-        <TrendChart values={history.map((point) => point.score)} labels={history.map((point) => point.date.slice(5))} />
-      ) : (
-        <Text style={styles.body}>{metric[0]?.toUpperCase()}{metric.slice(1)} is not measured yet. Only mood check-ins are stored on this device.</Text>
-      )}
-      <View style={styles.split}>
-        <View style={styles.panel}>
-          <Text style={styles.title}>Tool Usage</Text>
-          <DonutChart segments={USAGE} center="Uses" />
+
+      <ChipRow options={RANGE_OPTIONS} value={range} onChange={setRange} />
+
+      <Card title={`Your account · last ${range} days`} source="account">
+        {account.enabled && summary ? (
+          <AccountStats summary={summary} />
+        ) : (
+          <AccountUnavailable
+            loading={account.enabled && account.query.isLoading}
+            error={account.enabled ? account.query.error : null}
+            onRetry={() => void account.query.refetch()}
+          />
+        )}
+      </Card>
+
+      {account.enabled && summary ? (
+        <Card title="How you felt" source="account">
+          <AccountMoodDistribution summary={summary} days={account.days} />
+        </Card>
+      ) : null}
+
+      {account.enabled ? (
+        <Card title="Recent entries" source="account">
+          <RecentAccountEntries days={account.days} />
+        </Card>
+      ) : null}
+
+      <Card title={`On this device · last ${range} days`} source="device">
+        <View style={myspace.grid}>
+          <StatTile icon="happy-outline" value={average ? `${average}/10` : '—'} label="Average mood tap" tint={customer.green} ink={customer.greenInk} />
+          <StatTile icon="checkmark-done-outline" value={String(history.length)} label="Mood taps" tint={customer.sky} ink={customer.skyInk} />
+          <StatTile icon="bookmark-outline" value={String(state.savedToolIds.length)} label="Saved tools" tint={customer.mint} ink={customer.teal} />
+          <StatTile icon="book-outline" value={String(state.journal.length)} label="Journal notes" tint={customer.lavender} ink={customer.lavenderInk} />
         </View>
-        <View style={styles.panel}>
-          <Text style={styles.title}>Programme Progress</Text>
-          {stress ? (
-            <View>
-              <Image source={stress.image} style={styles.mini} />
-              <Text style={styles.body}>{stress.title}</Text>
+      </Card>
+
+      <Card title="Mood taps on this device" source="device">
+        <MoodTrend history={history} range={range} />
+        {moodSegments.length ? (
+          <View style={styles.donutRow}>
+            <DonutChart segments={moodSegments} center="Taps" />
+            <View style={styles.legend}>
+              {moodSegments.map((segment) => (
+                <View key={segment.label} style={styles.legendRow}>
+                  <View style={[styles.dot, { backgroundColor: segment.color }]} />
+                  <Text style={[myspace.body, styles.grow]}>{segment.label}</Text>
+                  <Text style={myspace.strong}>{segment.value}</Text>
+                </View>
+              ))}
             </View>
-          ) : null}
-          {state.enrollments.map((enrollment) => {
-            const programme = programmeById(enrollment.programmeId);
-            if (!programme) return null;
-            const percent = Math.round((enrollment.completedDays.length / programme.plan.length) * 100);
-            return (
-              <View key={enrollment.programmeId}>
-                <Text style={styles.body}>{programme.title}</Text>
-                <View style={styles.track}><View style={[styles.fill, { width: `${percent}%` }]} /></View>
-                <Text style={styles.meta}>{percent}%</Text>
-              </View>
-            );
-          })}
-        </View>
-      </View>
-      <View style={styles.note}>
-        <Text style={styles.title}>Your Insights</Text>
-        <Text style={styles.body}>Mood entries on this device are the only measured series. Other insight sentences from the design are not calculated, so they are not shown as facts.</Text>
-      </View>
-      <View style={styles.activity}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Your Next Step</Text>
-          <Text style={styles.body}>Continue the next unlocked day of your enrolled programme.</Text>
-        </View>
-        <OutlineButton label="Continue Programme" onPress={() => router.push('/programmes/stress-relief-7/learn')} />
-      </View>
+          </View>
+        ) : null}
+      </Card>
+
+      <Card title="Programme progress" source="device">
+        <ProgrammeProgressList />
+      </Card>
+
+      <Card title="Your next step" tone="mint">
+        {nextProgramme?.programme ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              router.push({ pathname: '/programmes/[id]/learn', params: { id: nextProgramme.programme!.id } })
+            }
+          >
+            <Text style={myspace.body}>
+              Continue <Text style={myspace.strong}>{nextProgramme.programme.title}</Text> — day{' '}
+              {nextProgramme.enrollment.completedDays.length + 1} is next.
+            </Text>
+            <Text style={styles.link}>Continue programme →</Text>
+          </Pressable>
+        ) : (
+          <Pressable accessibilityRole="button" onPress={openMoodCheckin}>
+            <Text style={myspace.body}>
+              A daily mood check-in builds a clearer picture on your account over time.
+            </Text>
+            <Text style={styles.link}>Do a mood check-in →</Text>
+          </Pressable>
+        )}
+      </Card>
     </CustomerPage>
   );
 }
 
 const styles = StyleSheet.create({
+  grow: { flex: 1 },
   heroRow: { flexDirection: 'row', gap: 8 },
   heroArt: { width: 92, height: 72, borderRadius: 16 },
-  checkin: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFF8E8', borderRadius: 18, padding: 12 },
-  title: { fontFamily: customerFonts.bold, fontSize: 15, color: customer.navy },
-  body: { fontFamily: customerFonts.regular, fontSize: 13, color: customer.body, lineHeight: 18 },
-  meta: { fontFamily: customerFonts.regular, fontSize: 12, color: customer.muted },
-  profileCard: {
-    backgroundColor: customer.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: customer.line,
-    padding: 14,
-    gap: 4,
-  },
-  profileForm: { gap: 8 },
-  input: {
-    minHeight: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: customer.line,
-    backgroundColor: customer.white,
-    paddingHorizontal: 12,
-    fontFamily: customerFonts.regular,
-    fontSize: 14,
-    color: customer.navy,
-  },
-  section: { fontFamily: customerFonts.bold, fontSize: 18, color: customer.navy },
-  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  stat: { width: '48%', flexGrow: 1, borderRadius: 16, padding: 12, gap: 4 },
-  statValue: { fontFamily: customerFonts.bold, fontSize: 16, color: customer.navy, textTransform: 'capitalize' },
-  activity: { flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: customer.white, borderRadius: 16, borderWidth: 1, borderColor: customer.line, padding: 12 },
+  subhead: { fontFamily: customerFonts.bold, fontSize: 14, color: customer.navy },
   goal: { gap: 6 },
-  goalTop: { flexDirection: 'row', justifyContent: 'space-between' },
-  track: { height: 8, borderRadius: 8, backgroundColor: '#E6EEF0', overflow: 'hidden' },
-  fill: { height: 8, backgroundColor: customer.teal },
-  split: { flexDirection: 'row', gap: 8 },
-  panel: { flex: 1, backgroundColor: customer.white, borderRadius: 16, borderWidth: 1, borderColor: customer.line, padding: 10, gap: 6 },
-  mini: { width: '100%', height: 52, borderRadius: 8 },
-  badge: { backgroundColor: customer.mint, borderRadius: 14, padding: 10 },
-  note: { backgroundColor: customer.mint, borderRadius: 16, padding: 14, gap: 6 },
-  price: { fontFamily: customerFonts.bold, color: customer.teal },
+  goalTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  track: { height: 8, borderRadius: 8, backgroundColor: customer.mintDeep, overflow: 'hidden' },
+  fill: { height: 8, borderRadius: 8, backgroundColor: customer.teal },
+  programme: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  programmeImage: { width: 52, height: 52, borderRadius: 14 },
+  percent: { fontFamily: customerFonts.bold, fontSize: 14, color: customer.teal },
+  donutRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  legend: { flex: 1, gap: 8 },
+  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  logRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9 },
+  logDivider: { borderBottomWidth: 1, borderBottomColor: customer.line },
+  entry: { gap: 2, paddingVertical: 10 },
+  entryKind: { fontFamily: customerFonts.medium, fontSize: 11.5, color: customer.teal },
+  historyLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  link: { fontFamily: customerFonts.bold, fontSize: 13, color: customer.teal, marginTop: 8 },
 });

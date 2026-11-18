@@ -90,7 +90,7 @@ export function ProgrammesScreen() {
       right={
         <>
           <IconButton icon="heart-outline" label="Saved programmes" onPress={() => router.push('/(tabs)/my-space')} />
-          <IconButton icon="notifications-outline" label="Notifications" onPress={() => router.push('/(tabs)/bookings')} />
+          <IconButton icon="notifications-outline" label="Notifications" onPress={() => router.push('/notifications')} />
         </>
       }
     >

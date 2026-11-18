@@ -1,836 +1,816 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
-import { router, type Href } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { router, useFocusEffect } from 'expo-router';
+import { memo, useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
-  ActivityIndicator,
-  ImageBackground,
+  FlatList,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
-  View,
   useWindowDimensions,
+  View,
 } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
+import { isApiConfigured } from '@/constants/config';
+import { FRONTEND_ONLY } from '@/constants/frontendOnly';
+import { formatInr } from '@/features/customer/content';
+import { PillButton, SearchEntry, Section, SectionNotice } from '@/features/customer/home/blocks';
+import { PressCard, RemoteImage, Skeleton } from '@/features/customer/home/media';
 import {
-  CATEGORIES,
-  SESSION_TYPES,
-  TIPS,
-  art,
-  formatInr,
-  moodById,
-  programmeById,
-  toIsoDate,
-  type MoodId,
-} from '@/features/customer/content';
-import { mapExpertCard, toolHref, toolVisual } from '@/features/customer/liveCatalog';
-import { customerActions, useCustomerState } from '@/features/customer/store';
-import {
-  CustomerPage,
-  IconButton,
-  SectionTitle,
-  TealButton,
-  useMenu,
-} from '@/features/customer/ui';
+  expertInitials,
+  expertTint,
+  openLiveTool,
+  toolHref,
+  toolVisual,
+} from '@/features/customer/liveCatalog';
+import { useAccountScope, useMyNotifications } from '@/features/customer/myspace/accountData';
+import { Avatar, greetingFor, profileImageUrl, useProfileQuery } from '@/features/customer/myspace/parts';
+import { useCustomerState } from '@/features/customer/store';
+import { CustomerPage, IconButton } from '@/features/customer/ui';
 import {
   fetchExperts,
   fetchProgrammeEvents,
   fetchTools,
+  type ApiExpert,
+  type ApiExpertCategory,
+  type ApiProgrammeEvent,
+  type ApiTool,
 } from '@/services/api/catalog';
-import { isApiConfigured } from '@/constants/config';
-import { FRONTEND_ONLY } from '@/constants/frontendOnly';
+import { resolveImageUrl, websiteImage } from '@/services/media/imageUrl';
 import { customer, customerFonts } from '@/theme';
 
-const BANNERS = [
-  {
-    title: 'A little support goes a long way.',
-    body: 'Personalised tools, expert guidance and programmes for your wellbeing.',
-    action: 'Explore Programmes',
-    href: '/programmes' as const,
-    image: art.splash,
-  },
-  {
-    title: 'Talk with someone who gets it.',
-    body: 'Verified experts for mental health, career and everyday wellbeing.',
-    action: 'Find an Expert',
-    href: '/(tabs)/experts' as const,
-    image: art.lake,
-  },
-  {
-    title: 'Small practices. Real progress.',
-    body: 'Pick up a tool or continue a programme you already started.',
-    action: 'Open My Space',
-    href: '/(tabs)/my-space' as const,
-    image: art.dawn,
-  },
-  {
-    title: 'Build calm one day at a time.',
-    body: 'Structured programmes for stress, sleep and everyday balance.',
-    action: 'Browse Tools',
-    href: '/(tabs)/tools' as const,
-    image: art.hills,
-  },
-];
+const LIVE = !FRONTEND_ONLY && isApiConfigured();
 
-const QUICK_ACTIONS: {
-  id: string;
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  tint: string;
-  ink: string;
-  href: Href;
-}[] = [
-  { id: 'mood', label: 'Daily Mood', icon: 'happy-outline', tint: '#E7F8F0', ink: '#1F9D6A', href: '/insights/mood' },
-  { id: 'journal', label: 'Journal', icon: 'book-outline', tint: '#F1ECFF', ink: '#6E5BD6', href: '/tools/journal' },
-  { id: 'gratitude', label: 'Gratitude', icon: 'heart-outline', tint: '#FDECEE', ink: '#E25B8A', href: '/tools/gratitude' },
-  { id: 'expert', label: 'Talk to Expert', icon: 'people-outline', tint: '#E8F1FF', ink: '#3D6FE0', href: '/(tabs)/experts' },
-  { id: 'progress', label: 'My Progress', icon: 'stats-chart-outline', tint: '#FFF0E4', ink: '#E08A3C', href: '/progress' },
-  { id: 'tools', label: 'Explore Tools', icon: 'grid-outline', tint: '#E7F6FB', ink: '#2A9BB5', href: '/(tabs)/tools' },
+/** Daily-practice tools first; everything else keeps the website's display order. */
+const QUICK_ACCESS_ORDER = [
+  'daily-mood-check-in',
+  'digital-journal',
+  'gratitude-journal',
+  'tarot-reflection',
+  'career-interest-test',
+  'skills-strengths-assessment',
 ];
+const QUICK_ACCESS_COUNT = 6;
+const MORE_TOOLS_COUNT = 4;
 
-function tipOfDayIndex(): number {
-  const day = Math.floor(Date.now() / 86_400_000);
-  return day % TIPS.length;
+function openExpert(id: number): void {
+  router.push({ pathname: '/experts/profile/[id]', params: { id: String(id) } });
+}
+
+function openCategory(category: ApiExpertCategory): void {
+  router.push({
+    pathname: '/experts/browse',
+    params: { category: category.slug, label: category.label },
+  });
+}
+
+function splitTools(tools: ApiTool[]): { quick: ApiTool[]; more: ApiTool[] } {
+  const runnable = tools.filter((tool) => toolHref(tool) !== null);
+  const ranked = [
+    ...QUICK_ACCESS_ORDER.flatMap((slug) => runnable.filter((tool) => tool.slug === slug)),
+    ...runnable.filter((tool) => !QUICK_ACCESS_ORDER.includes(tool.slug)),
+  ];
+  return {
+    quick: ranked.slice(0, QUICK_ACCESS_COUNT),
+    more: ranked.slice(QUICK_ACCESS_COUNT, QUICK_ACCESS_COUNT + MORE_TOOLS_COUNT),
+  };
 }
 
 export function HomeScreen() {
-  const menu = useMenu();
-  const state = useCustomerState();
   const { width } = useWindowDimensions();
-  const [banner, setBanner] = useState(0);
-  const liveEnabled = !FRONTEND_ONLY && isApiConfigured();
+  const contentWidth = Math.max(width - 32, 280);
+  const session = useCustomerState().session;
+  const account = useAccountScope();
+  const profile = useProfileQuery(account.enabled);
+  const notifications = useMyNotifications(3);
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
 
-  const toolsQuery = useQuery({
+  useFocusEffect(
+    useCallback(() => {
+      if (!account.enabled) return;
+      void queryClient.refetchQueries({
+        queryKey: ['v1', 'my', account.userId, 'notifications'],
+        stale: true,
+        type: 'active',
+      });
+    }, [queryClient, account.enabled, account.userId]),
+  );
+
+  const tools = useQuery({
     queryKey: ['v1', 'tools'],
     queryFn: async () => {
       const result = await fetchTools();
       if (!result.ok) throw new Error(result.message);
       return result.tools;
     },
-    enabled: liveEnabled,
-    staleTime: 60_000,
+    enabled: LIVE,
   });
 
-  const expertsQuery = useQuery({
+  const experts = useQuery({
     queryKey: ['v1', 'experts', 'featured'],
     queryFn: async () => {
       const result = await fetchExperts({ featured: true, limit: 8 });
       if (!result.ok) throw new Error(result.message);
-      return result.experts.map(mapExpertCard);
+      return result;
     },
-    enabled: liveEnabled,
-    staleTime: 60_000,
+    enabled: LIVE,
   });
 
-  const eventsQuery = useQuery({
+  const events = useQuery({
     queryKey: ['v1', 'programme-events', 'homepage'],
     queryFn: async () => {
       const result = await fetchProgrammeEvents({ homepage: true });
       if (!result.ok) throw new Error(result.message);
-      return result;
+      return result.events;
     },
-    enabled: liveEnabled,
-    staleTime: 60_000,
+    enabled: LIVE,
   });
 
-  const today = toIsoDate(new Date());
-  const todayMood = state.moodHistory.find((point) => point.date === today);
-  const moodSize = Math.max(58, (width - 32 - 20) / 5);
-  const slide = BANNERS[banner] ?? BANNERS[0]!;
-  const tip = TIPS[tipOfDayIndex()] ?? TIPS[0]!;
-  const displayName = state.session?.name?.trim();
+  const { quick, more } = useMemo(() => splitTools(tools.data ?? []), [tools.data]);
+  const categories = useMemo(
+    () => (experts.data?.categories ?? []).filter((category) => category.slug && category.label),
+    [experts.data],
+  );
 
-  const popularTools = useMemo(() => (toolsQuery.data ?? []).slice(0, 8), [toolsQuery.data]);
-  const featuredExperts = useMemo(() => (expertsQuery.data ?? []).slice(0, 3), [expertsQuery.data]);
-  const featuredEvents = useMemo(() => eventsQuery.data?.events ?? [], [eventsQuery.data]);
+  const name = profile.data?.name ?? session?.name ?? '';
+  const signedIn = Boolean(session && name.trim());
+  const unread = notifications.data?.pages[0]?.unread_count ?? 0;
 
-  const continueItems = useMemo(() => {
-    const items: { id: string; title: string; detail: string; href: Href }[] = [];
-    if (state.journal[0]) {
-      items.push({
-        id: 'journal',
-        title: 'Resume Journal',
-        detail: 'Pick up where you left off',
-        href: '/tools/journal',
-      });
-    }
-    for (const tool of popularTools.slice(0, 2)) {
-      const href = toolHref(tool);
-      if (!href) continue;
-      items.push({
-        id: `tool-${tool.slug}`,
-        title: tool.name,
-        detail: tool.description,
-        href,
-      });
-    }
-    return items.slice(0, 4);
-  }, [state.journal, popularTools]);
-
-  const streak = useMemo(() => {
-    const dates = new Set(state.moodHistory.map((point) => point.date));
-    let count = 0;
-    const cursor = new Date();
-    cursor.setHours(0, 0, 0, 0);
-    while (dates.has(toIsoDate(cursor))) {
-      count += 1;
-      cursor.setDate(cursor.getDate() - 1);
-    }
-    return count;
-  }, [state.moodHistory]);
-
-  const toolsCompleted = state.activities.filter((item) =>
-    /tool|journal|gratitude|mood|check-in/i.test(item.title),
-  ).length;
-  const programmeProgress = state.enrollments[0]
-    ? Math.round(
-        (state.enrollments[0].completedDays.length /
-          Math.max(programmeById(state.enrollments[0].programmeId)?.days ?? 7, 1)) *
-          100,
-      )
-    : 0;
-
-  const nextSession = useMemo(() => {
-    return state.bookings
-      .filter((booking) => booking.status === 'upcoming' && !booking.sample)
-      .slice()
-      .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))[0];
-  }, [state.bookings]);
-
-  const nextExpert = nextSession
-    ? featuredExperts.find((expert) => expert.id === nextSession.expertId)
-    : undefined;
-  const nextSessionType = nextSession
-    ? SESSION_TYPES.find((item) => item.id === nextSession.sessionType)
-    : undefined;
-
-  const chooseMood = (id: MoodId) => {
-    customerActions.setMood(id);
-    router.push('/insights/mood');
-  };
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.allSettled([
+      tools.refetch(),
+      experts.refetch(),
+      events.refetch(),
+      account.enabled ? notifications.refetch() : Promise.resolve(),
+    ]);
+    setRefreshing(false);
+  }, [tools, experts, events, notifications, account.enabled]);
 
   return (
     <CustomerPage
       nav="discover"
       active="home"
-      left={<IconButton icon="menu" label="Open menu" onPress={menu.show} />}
+      refreshing={refreshing}
+      onRefresh={LIVE ? onRefresh : undefined}
+      left={
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={signedIn ? 'Open My Space' : 'Sign in or open My Space'}
+          onPress={() => router.push('/(tabs)/my-space')}
+          hitSlop={6}
+          style={styles.avatarButton}
+        >
+          {signedIn ? (
+            <Avatar name={name} uri={resolveImageUrl(profileImageUrl(profile.data))} size={36} />
+          ) : (
+            <View style={styles.guestAvatar}>
+              <Ionicons name="person-outline" size={18} color={customer.teal} />
+            </View>
+          )}
+        </Pressable>
+      }
       right={
         <>
+          <IconButton icon="search-outline" label="Search" onPress={() => router.push('/search')} />
           <IconButton
             icon="notifications-outline"
-            label="Notifications"
-            badge={Boolean(nextSession)}
-            onPress={() => router.push('/(tabs)/bookings')}
+            label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+            onPress={() => router.push('/notifications')}
+            badge={account.enabled && unread > 0}
           />
-          <IconButton
-            icon="person"
-            label="My Space"
-            filled
-            onPress={() => router.push('/(tabs)/my-space')}
-          />
-          {menu.menu}
         </>
       }
     >
-      {displayName ? (
-        <Text style={styles.greeting}>Hi, {displayName}</Text>
-      ) : null}
-      <Text style={styles.moodPrompt}>How are you feeling today?</Text>
+      <Greeting signedIn={signedIn} name={name} />
+      <Hero width={contentWidth} />
+      <SearchEntry />
 
-      {/* Daily mood */}
-      <View style={styles.moods}>
-        {(['happy', 'calm', 'okay', 'low', 'stressed'] as const).map((id) => {
-          const mood = moodById(id);
-          const selected = todayMood?.mood === id;
-          return (
-            <Pressable
-              key={id}
-              accessibilityRole="button"
-              accessibilityLabel={mood.label}
-              accessibilityState={{ selected }}
-              onPress={() => chooseMood(id)}
-              style={[
-                styles.mood,
-                {
-                  width: moodSize,
-                  backgroundColor: mood.tint,
-                  borderColor: selected ? mood.ink : 'transparent',
-                },
-              ]}
-            >
-              <Text style={styles.emoji}>{mood.emoji}</Text>
-              <Text style={styles.moodLabel}>{mood.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      {todayMood ? (
-        <Pressable onPress={() => router.push('/insights/mood')} style={styles.moodSaved}>
-          <Text style={styles.moodSavedText}>
-            Today&apos;s mood: {moodById(todayMood.mood).label} · View insights
-          </Text>
-        </Pressable>
+      {LIVE ? (
+        <Section
+          title="Quick access"
+          action="All tools"
+          onAction={() => router.push('/(tabs)/tools')}
+        >
+          {tools.isPending ? (
+            <SkeletonRow width={120} height={150} />
+          ) : tools.isError ? (
+            <SectionNotice
+              text="We couldn't load tools right now."
+              action="Try again"
+              onAction={() => void tools.refetch()}
+            />
+          ) : quick.length > 0 ? (
+            <HorizontalList
+              data={quick}
+              keyExtractor={(tool) => tool.slug}
+              renderItem={(tool) => <QuickToolCard tool={tool} />}
+            />
+          ) : (
+            <SectionNotice text="Tools will appear here once they're published." />
+          )}
+        </Section>
       ) : null}
 
-      {/* 3. Hero banner */}
-      <ImageBackground source={slide.image} style={styles.banner} imageStyle={styles.bannerImage}>
-        <View style={styles.bannerShade} />
-        <Text style={styles.bannerTitle}>{slide.title}</Text>
-        <Text style={styles.bannerBody}>{slide.body}</Text>
-        <View style={styles.bannerButton}>
-          <TealButton
-            label={slide.action}
-            icon="arrow-forward"
-            iconPosition="end"
-            onPress={() => router.push(slide.href)}
-          />
-        </View>
-      </ImageBackground>
-      <View style={styles.dots}>
-        {BANNERS.map((item, index) => (
-          <Pressable
-            key={item.title}
-            onPress={() => setBanner(index)}
-            accessibilityLabel={`Banner ${index + 1}`}
-          >
-            <View style={[styles.dot, index === banner && styles.dotOn]} />
-          </Pressable>
-        ))}
-      </View>
+      <ConsultBanner width={contentWidth} />
 
-      {/* 4. Quick actions */}
-      <SectionTitle title="Quick Actions" />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hRow}>
-        {QUICK_ACTIONS.map((action) => (
-          <Pressable
-            key={action.id}
-            style={[styles.quickCard, { backgroundColor: action.tint }]}
-            onPress={() => router.push(action.href)}
-            accessibilityRole="button"
-            accessibilityLabel={action.label}
-          >
-            <Ionicons name={action.icon} size={22} color={action.ink} />
-            <Text style={[styles.quickLabel, { color: action.ink }]}>{action.label}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      {/* 5. Explore by category */}
-      <SectionTitle title="Explore" action="View All" onAction={() => router.push('/(tabs)/explore')} />
-      <View style={styles.grid}>
-        {CATEGORIES.map((category) => (
-          <Pressable
-            key={category.slug}
-            style={[styles.category, { backgroundColor: category.tint }]}
-            onPress={() =>
-              router.push({ pathname: '/categories/[slug]', params: { slug: category.slug } })
-            }
-          >
-            <Ionicons name={category.icon} size={28} color={category.ink} />
-            <Text style={styles.categoryTitle}>{category.title}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {/* 6. Popular tools */}
-      <SectionTitle
-        title="Popular Tools"
-        action="View All"
-        onAction={() => router.push('/(tabs)/tools')}
-      />
-      {toolsQuery.isLoading ? <ActivityIndicator color={customer.teal} /> : null}
-      {toolsQuery.isError ? (
-        <Text style={styles.liveEmpty}>Tools could not be loaded. Pull to retry from Tools.</Text>
-      ) : null}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hRow}>
-        {popularTools.map((tool) => {
-          const visual = toolVisual(tool);
-          const href = toolHref(tool) ?? {
-            pathname: '/tools/[id]' as const,
-            params: { id: tool.slug },
-          };
-          return (
-            <Pressable
-              key={tool.slug}
-              style={styles.toolCard}
-              onPress={() => router.push(href)}
-            >
-              <View style={[styles.toolIcon, { backgroundColor: visual.tint }]}>
-                <Ionicons name={visual.icon} size={22} color={visual.ink} />
-              </View>
-              <Text style={styles.toolName} numberOfLines={2}>
-                {tool.name}
-              </Text>
-              <Text style={styles.toolMeta}>
-                {tool.access_type === 'free' ? 'Free' : 'Paid'}
-                {!tool.mobile_ready ? ' · Web' : ''}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-      {!toolsQuery.isLoading && popularTools.length === 0 ? (
-        <Text style={styles.liveEmpty}>No active tools are published yet.</Text>
+      {LIVE ? (
+        <Section
+          title="Featured experts"
+          action="View all"
+          onAction={() => router.push('/(tabs)/experts')}
+        >
+          {experts.isPending ? (
+            <SkeletonRow width={184} height={300} />
+          ) : experts.isError ? (
+            <SectionNotice
+              text="We couldn't load experts right now."
+              action="Try again"
+              onAction={() => void experts.refetch()}
+            />
+          ) : experts.data.experts.length > 0 ? (
+            <HorizontalList
+              data={experts.data.experts}
+              keyExtractor={(expert) => String(expert.id)}
+              renderItem={(expert) => <ExpertCard expert={expert} />}
+            />
+          ) : (
+            <SectionNotice text="Experts will appear here once their profiles are approved." />
+          )}
+        </Section>
       ) : null}
 
-      {/* 8. Featured experts */}
-      <SectionTitle
-        title="Featured Experts"
-        action="View All"
-        onAction={() => router.push('/(tabs)/experts')}
-      />
-      {expertsQuery.isLoading ? <ActivityIndicator color={customer.teal} /> : null}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hRow}>
-        {featuredExperts.map((expert) => (
-          <View key={expert.id} style={styles.expertCard}>
-            <View style={[styles.avatar, { backgroundColor: expert.tint }]}>
-              <Text style={styles.avatarText}>{expert.initials}</Text>
-            </View>
-            <Text style={styles.expertName} numberOfLines={1}>
-              {expert.name}
-            </Text>
-            <Text style={styles.expertMeta} numberOfLines={1}>
-              {expert.title}
-            </Text>
-            <Text style={styles.expertMeta}>
-              {expert.rating > 0 ? `★ ${expert.rating.toFixed(1)} · ` : ''}
-              {expert.specialty}
-            </Text>
-            <View style={styles.expertActions}>
-              <Pressable
-                style={styles.ghostBtn}
-                onPress={() =>
-                  router.push({ pathname: '/experts/profile/[id]', params: { id: expert.id } })
-                }
-              >
-                <Text style={styles.ghostBtnText}>Profile</Text>
-              </Pressable>
-              <Pressable
-                style={styles.solidBtn}
-                onPress={() =>
-                  router.push({
-                    pathname: '/booking/[expertId]',
-                    params: { expertId: expert.id },
-                  })
-                }
-              >
-                <Text style={styles.solidBtnText}>Book</Text>
-              </Pressable>
-            </View>
+      {LIVE && (experts.isPending || categories.length > 0) ? (
+        <Section title="Explore by need">
+          {experts.isPending ? (
+            <SkeletonRow width={132} height={170} />
+          ) : (
+            <HorizontalList
+              data={categories}
+              keyExtractor={(category) => category.slug}
+              renderItem={(category) => <CategoryCard category={category} />}
+            />
+          )}
+        </Section>
+      ) : null}
+
+      {LIVE && more.length > 0 ? (
+        <Section
+          title="Explore our tools"
+          action="View all"
+          onAction={() => router.push('/(tabs)/tools')}
+        >
+          <View style={styles.toolList}>
+            {more.map((tool, index) => (
+              <ToolRow key={tool.slug} tool={tool} first={index === 0} />
+            ))}
           </View>
-        ))}
-      </ScrollView>
-      {!expertsQuery.isLoading && featuredExperts.length === 0 ? (
-        <Text style={styles.liveEmpty}>No featured experts are available right now.</Text>
+        </Section>
       ) : null}
 
-      {/* 9. Website programme events (all_events) — not day-based enrolment */}
-      <SectionTitle
-        title="Featured Events"
-        action="Explore"
-        onAction={() => router.push('/programmes')}
-      />
-      {eventsQuery.isLoading ? <ActivityIndicator color={customer.teal} /> : null}
-      {featuredEvents.map((event) => (
-        <View key={event.id} style={styles.programmeCard}>
-          <View style={styles.programmeCopy}>
-            <Text style={styles.recommendTitle}>{event.heading}</Text>
-            <Text style={styles.recommendBody}>
-              {event.mini_heading}
-              {event.date ? ` · ${event.date}` : ''}
-              {event.starting_fees != null ? ` · ₹${event.starting_fees}` : ''}
-            </Text>
-            <Text style={styles.recommendBody} numberOfLines={2}>
-              {event.short_description}
-            </Text>
-            <Text style={styles.sessionNote}>{event.mobile_note}</Text>
-          </View>
-        </View>
-      ))}
-      {!eventsQuery.isLoading && featuredEvents.length === 0 ? (
-        <Text style={styles.liveEmpty}>
-          No website events are published for the homepage yet. Day-based programme enrolment is
-          not available in the database.
-        </Text>
-      ) : null}
-
-      {/* 10. Continue your journey */}
-      {continueItems.length > 0 ? (
-        <>
-          <SectionTitle title="Continue Your Journey" />
-          {continueItems.map((item) => (
-            <Pressable
-              key={item.id}
-              style={styles.continueRow}
-              onPress={() => router.push(item.href)}
-            >
-              <View style={styles.continueIcon}>
-                <Ionicons name="play-circle-outline" size={22} color={customer.teal} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.recommendTitle}>{item.title}</Text>
-                <Text style={styles.recommendBody}>{item.detail}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={customer.muted} />
-            </Pressable>
-          ))}
-        </>
-      ) : null}
-
-      {/* 11. Progress snapshot */}
-      <SectionTitle
-        title="Your Progress"
-        action="View Progress"
-        onAction={() => router.push('/progress')}
-      />
-      <View style={styles.statsRow}>
-        <View style={[styles.stat, { backgroundColor: customer.mint }]}>
-          <Text style={styles.statValue}>{streak}</Text>
-          <Text style={styles.statLabel}>Day streak</Text>
-        </View>
-        <View style={[styles.stat, { backgroundColor: customer.lilac }]}>
-          <Text style={styles.statValue}>{toolsCompleted || state.savedToolIds.length}</Text>
-          <Text style={styles.statLabel}>Tools used</Text>
-        </View>
-        <View style={[styles.stat, { backgroundColor: customer.peach }]}>
-          <Text style={styles.statValue}>{state.moodHistory.length}</Text>
-          <Text style={styles.statLabel}>Mood logs</Text>
-        </View>
-        <View style={[styles.stat, { backgroundColor: customer.sky }]}>
-          <Text style={styles.statValue}>{programmeProgress}%</Text>
-          <Text style={styles.statLabel}>Programme</Text>
-        </View>
-      </View>
-
-      {/* 12. Daily tip */}
-      <SectionTitle title="Daily Wellness Tip" />
-      <View style={styles.tipCard}>
-        <Ionicons name="bulb-outline" size={22} color={customer.teal} />
-        <Text style={styles.tipText}>{tip}</Text>
-      </View>
-
-      {/* 13. Upcoming session — never present sample as paid/confirmed */}
-      {nextSession && nextExpert ? (
-        <>
-          <SectionTitle
-            title="Upcoming Session"
-            action="View Booking"
-            onAction={() => router.push('/(tabs)/bookings')}
+      {LIVE && (events.data?.length ?? 0) > 0 ? (
+        <Section
+          title="Programmes"
+          action="View all"
+          onAction={() => router.push('/programmes')}
+        >
+          <HorizontalList
+            data={events.data ?? []}
+            keyExtractor={(event) => String(event.id)}
+            renderItem={(event) => <ProgrammeCard event={event} />}
           />
-          <Pressable style={styles.sessionCard} onPress={() => router.push('/(tabs)/bookings')}>
-            <View style={[styles.avatar, { backgroundColor: nextExpert.tint }]}>
-              <Text style={styles.avatarText}>{nextExpert.initials}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.recommendTitle}>{nextExpert.name}</Text>
-              <Text style={styles.recommendBody}>
-                {nextSession.date} · {nextSession.time}
-                {nextSessionType ? ` · ${nextSessionType.title}` : ''}
-              </Text>
-              <Text style={styles.sessionNote}>
-                {nextSession.sample
-                  ? 'Sample schedule preview — not a paid booking'
-                  : nextSession.payment === 'paid'
-                    ? `Confirmed · ${formatInr(nextSession.fee)}`
-                    : nextSession.paymentMessage || 'Payment pending'}
-              </Text>
-            </View>
-          </Pressable>
-        </>
+        </Section>
       ) : null}
 
-      {/* 14. Articles skipped — no published content in app yet */}
+      <JourneyBanner />
 
-      {/* 15. Join as professional */}
-      <View style={styles.proCard}>
-        <Text style={styles.proTitle}>Become a YuktiOne Professional</Text>
-        <Text style={styles.proBody}>
-          Share your expertise with people seeking practical, trusted guidance.
+      <Pressable
+        accessibilityRole="link"
+        onPress={() => router.push('/professional/join')}
+        style={({ pressed }) => [styles.proLink, pressed && styles.pressedText]}
+      >
+        <Text style={styles.proLinkText}>
+          Are you an expert? <Text style={styles.proLinkAction}>Join YuktiOne as a professional</Text>
         </Text>
-        <TealButton
-          label="Apply Now"
-          icon="arrow-forward"
-          iconPosition="end"
-          onPress={() => router.push('/professional/join')}
-        />
-      </View>
+      </Pressable>
     </CustomerPage>
   );
 }
 
+function Greeting({ signedIn, name }: { signedIn: boolean; name: string }) {
+  if (signedIn) {
+    const first = name.trim().split(/\s+/)[0] ?? '';
+    return (
+      <View style={styles.greeting}>
+        <Text style={styles.greetingTitle} numberOfLines={1}>
+          {greetingFor(new Date())}
+          {first ? `, ${first}` : ''}
+        </Text>
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.greeting, styles.greetingRow]}>
+      <Text style={styles.greetingTitle}>Welcome to YuktiOne</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push('/auth')}
+        hitSlop={8}
+        style={({ pressed }) => pressed && styles.pressedText}
+      >
+        <Text style={styles.signIn}>Sign in</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function Hero({ width }: { width: number }) {
+  const wide = width >= 600;
+  const content = (
+    <View style={[styles.heroContent, wide && styles.heroContentWide]}>
+      <Text style={styles.heroTitle} accessibilityRole="header">
+        Talk. Reflect. Grow.
+      </Text>
+      <Text style={styles.heroBody}>Expert guidance and personal growth, all in one place.</Text>
+      <View style={[styles.heroActions, width < 320 && styles.heroActionsStacked]}>
+        <PillButton
+          label="Find an Expert"
+          onPress={() => router.push('/(tabs)/experts')}
+          tone="teal"
+          grow
+        />
+        <PillButton
+          label="Explore Tools"
+          onPress={() => router.push('/(tabs)/tools')}
+          tone="light"
+          grow
+        />
+      </View>
+    </View>
+  );
+
+  if (wide) {
+    return (
+      <View style={[styles.hero, styles.heroWide]}>
+        {content}
+        <RemoteImage
+          uri={websiteImage('hero')}
+          background={customer.navy}
+          fallback={<View />}
+          style={styles.heroWideImage}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <RemoteImage
+      uri={websiteImage('hero')}
+      background={customer.navy}
+      fallback={<View />}
+      style={[styles.hero, { height: Math.round(Math.min(Math.max(width * 1.08, 380), 480)) }]}
+    >
+      <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id="heroScrim" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0.28" stopColor={customer.navy} stopOpacity="0" />
+            <Stop offset="0.62" stopColor={customer.navy} stopOpacity="0.55" />
+            <Stop offset="1" stopColor={customer.navy} stopOpacity="0.92" />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#heroScrim)" />
+      </Svg>
+      {content}
+    </RemoteImage>
+  );
+}
+
+function ConsultBanner({ width }: { width: number }) {
+  const wide = width >= 600;
+  const imageHeight = wide ? 220 : Math.round(Math.min(width / 1.59, 210));
+  return (
+    <View style={[styles.consult, wide && styles.consultWide]}>
+      <RemoteImage
+        uri={websiteImage('experts')}
+        resizeMode="contain"
+        background="#F5EEE8"
+        inset={8}
+        style={[styles.consultImage, wide ? styles.consultImageWide : { height: imageHeight }]}
+      />
+      <View style={[styles.consultBody, wide && styles.consultBodyWide]}>
+        <Text style={styles.bannerTitle} accessibilityRole="header">
+          Guidance from the Right Expert
+        </Text>
+        <Text style={styles.bannerBody}>
+          Connect with professionals who understand your goals.
+        </Text>
+        <PillButton
+          label="Explore Experts"
+          icon="arrow-forward"
+          onPress={() => router.push('/(tabs)/experts')}
+          tone="teal"
+        />
+      </View>
+    </View>
+  );
+}
+
+function JourneyBanner() {
+  return (
+    <RemoteImage uri={websiteImage('ribbon')} background={customer.mint} fallback={<View />} style={styles.journey}>
+      <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id="journeyWash" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0" stopColor={customer.cream} stopOpacity="0.94" />
+            <Stop offset="0.55" stopColor={customer.cream} stopOpacity="0.7" />
+            <Stop offset="1" stopColor={customer.cream} stopOpacity="0.1" />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#journeyWash)" />
+      </Svg>
+      <View style={styles.journeyContent}>
+        <Text style={styles.bannerTitle} accessibilityRole="header">
+          Your Journey, Your Pace
+        </Text>
+        <Text style={[styles.bannerBody, styles.journeyBody]}>
+          Explore tools and guidance designed to support your growth.
+        </Text>
+        <PillButton
+          label="Start Exploring"
+          icon="arrow-forward"
+          onPress={() => router.push('/(tabs)/explore')}
+          tone="teal"
+        />
+      </View>
+    </RemoteImage>
+  );
+}
+
+function HorizontalList<T>({
+  data,
+  keyExtractor,
+  renderItem,
+}: {
+  data: T[];
+  keyExtractor: (item: T) => string;
+  renderItem: (item: T) => ReactNode;
+}) {
+  return (
+    <FlatList
+      horizontal
+      data={data}
+      keyExtractor={keyExtractor}
+      renderItem={({ item }) => <>{renderItem(item)}</>}
+      showsHorizontalScrollIndicator={false}
+      initialNumToRender={4}
+      style={styles.rail}
+      contentContainerStyle={styles.railContent}
+    />
+  );
+}
+
+function SkeletonRow({ width, height }: { width: number; height: number }) {
+  return (
+    <View style={[styles.rail, styles.railContent, styles.skeletonRow]} accessibilityLabel="Loading">
+      {[0, 1, 2].map((key) => (
+        <Skeleton key={key} style={{ width, height, borderRadius: 18 }} />
+      ))}
+    </View>
+  );
+}
+
+const QuickToolCard = memo(function QuickToolCard({ tool }: { tool: ApiTool }) {
+  const visual = toolVisual(tool);
+  return (
+    <PressCard onPress={() => openLiveTool(tool)} label={tool.name} style={styles.quickCard}>
+      <RemoteImage
+        uri={resolveImageUrl(tool.image_url)}
+        resizeMode="contain"
+        inset={8}
+        background={visual.tint}
+        style={styles.quickImage}
+      />
+      <Text style={styles.quickName} numberOfLines={2}>
+        {tool.name}
+      </Text>
+    </PressCard>
+  );
+});
+
+const ExpertCard = memo(function ExpertCard({ expert }: { expert: ApiExpert }) {
+  const specialty = expert.specialization ?? expert.services[0] ?? null;
+  const rated = expert.rating != null && expert.review_count > 0;
+  return (
+    <PressCard
+      onPress={() => openExpert(expert.id)}
+      label={`${expert.name}${specialty ? `, ${specialty}` : ''}`}
+      hint="Opens the expert's profile"
+      style={styles.expertCard}
+    >
+      <RemoteImage
+        uri={resolveImageUrl(expert.photo_url)}
+        background={expertTint(expert.id)}
+        fallback={
+          <View style={styles.initialsWrap}>
+            <Text style={styles.initials}>{expertInitials(expert.name)}</Text>
+          </View>
+        }
+        style={styles.expertPhoto}
+      >
+        {expert.verified ? (
+          <View style={styles.verified}>
+            <Ionicons name="checkmark-circle" size={14} color={customer.teal} />
+            <Text style={styles.verifiedText}>Verified</Text>
+          </View>
+        ) : null}
+      </RemoteImage>
+      <View style={styles.expertBody}>
+        <Text style={styles.expertName} numberOfLines={1}>
+          {expert.name}
+        </Text>
+        {specialty ? (
+          <Text style={styles.expertSpecialty} numberOfLines={1}>
+            {specialty}
+          </Text>
+        ) : null}
+        {rated || expert.starting_price ? (
+          <View style={styles.expertMeta}>
+            {rated ? (
+              <View style={styles.rating}>
+                <Ionicons name="star" size={12} color="#D99A2B" />
+                <Text style={styles.metaText}>
+                  {expert.rating!.toFixed(1)} ({expert.review_count})
+                </Text>
+              </View>
+            ) : null}
+            {expert.starting_price ? (
+              <Text style={styles.metaText}>From {formatInr(expert.starting_price)}</Text>
+            ) : null}
+          </View>
+        ) : null}
+        <View style={styles.viewProfile}>
+          <Text style={styles.viewProfileText}>View profile</Text>
+          <Ionicons name="arrow-forward" size={14} color={customer.teal} />
+        </View>
+      </View>
+    </PressCard>
+  );
+});
+
+const CategoryCard = memo(function CategoryCard({ category }: { category: ApiExpertCategory }) {
+  return (
+    <PressCard
+      onPress={() => openCategory(category)}
+      label={category.label}
+      hint="Shows experts for this need"
+      style={styles.categoryCard}
+    >
+      <RemoteImage uri={resolveImageUrl(category.image_url)} style={styles.categoryImage} />
+      <Text style={styles.categoryLabel} numberOfLines={2}>
+        {category.label}
+      </Text>
+    </PressCard>
+  );
+});
+
+const ToolRow = memo(function ToolRow({ tool, first }: { tool: ApiTool; first: boolean }) {
+  const visual = toolVisual(tool);
+  return (
+    <PressCard
+      onPress={() => openLiveTool(tool)}
+      label={tool.name}
+      style={[styles.toolRow, !first && styles.toolRowDivider]}
+    >
+      <RemoteImage
+        uri={resolveImageUrl(tool.image_url)}
+        resizeMode="contain"
+        inset={6}
+        background={visual.tint}
+        style={styles.toolImage}
+      />
+      <View style={styles.toolText}>
+        <Text style={styles.toolName} numberOfLines={1}>
+          {tool.name}
+        </Text>
+        {tool.description ? (
+          <Text style={styles.toolBlurb} numberOfLines={2}>
+            {tool.description}
+          </Text>
+        ) : null}
+        <Text style={[styles.access, tool.access_type === 'paid' && styles.accessPaid]}>
+          {tool.access_type === 'paid' ? 'Paid' : 'Free'}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={customer.muted} />
+    </PressCard>
+  );
+});
+
+const ProgrammeCard = memo(function ProgrammeCard({ event }: { event: ApiProgrammeEvent }) {
+  const date = new Date(event.date);
+  const when = Number.isNaN(date.getTime())
+    ? null
+    : date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return (
+    <PressCard
+      onPress={() => router.push('/programmes')}
+      label={event.heading}
+      style={styles.programmeCard}
+    >
+      <RemoteImage uri={resolveImageUrl(event.card_image_url)} style={styles.programmeImage} />
+      <View style={styles.programmeBody}>
+        <Text style={styles.programmeTitle} numberOfLines={2}>
+          {event.heading}
+        </Text>
+        <Text style={styles.metaText} numberOfLines={1}>
+          {[when, event.mini_heading].filter(Boolean).join(' · ')}
+        </Text>
+        {event.starting_fees ? (
+          <Text style={styles.programmeFee}>From {formatInr(event.starting_fees)}</Text>
+        ) : null}
+      </View>
+    </PressCard>
+  );
+});
+
 const styles = StyleSheet.create({
-  greeting: {
-    fontFamily: customerFonts.medium,
-    fontSize: 14,
-    color: customer.body,
-    marginBottom: -4,
-  },
-  moodPrompt: {
-    fontFamily: customerFonts.bold,
-    fontSize: 16,
-    lineHeight: 22,
-    color: customer.navy,
-  },
-  liveEmpty: {
-    fontFamily: customerFonts.regular,
-    fontSize: 13,
-    color: customer.muted,
-    lineHeight: 18,
-  },
-  moods: { flexDirection: 'row', justifyContent: 'space-between', gap: 4 },
-  mood: {
-    borderRadius: 16,
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderWidth: 2,
-    gap: 4,
-  },
-  emoji: { fontSize: 22 },
-  moodLabel: { fontFamily: customerFonts.medium, fontSize: 11, color: customer.navy },
-  moodSaved: {
-    alignSelf: 'flex-start',
-    backgroundColor: customer.mint,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  moodSavedText: {
-    fontFamily: customerFonts.medium,
-    fontSize: 12,
-    color: customer.tealDark,
-  },
-  banner: {
-    borderRadius: 22,
-    overflow: 'hidden',
-    minHeight: 190,
-    padding: 16,
-    justifyContent: 'flex-end',
-  },
-  bannerImage: { borderRadius: 22 },
-  bannerShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(16, 40, 48, 0.32)' },
-  bannerTitle: {
-    fontFamily: customerFonts.bold,
-    fontSize: 22,
-    color: customer.white,
-    maxWidth: 250,
-  },
-  bannerBody: {
-    fontFamily: customerFonts.regular,
-    fontSize: 13,
-    color: customer.white,
-    marginVertical: 8,
-    maxWidth: 250,
-    lineHeight: 18,
-  },
-  bannerButton: { alignSelf: 'flex-start', minWidth: 180 },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#D5DEE3' },
-  dotOn: { backgroundColor: customer.teal, width: 8, height: 8 },
-  hRow: { gap: 10, paddingRight: 8 },
-  quickCard: {
-    width: 108,
-    minHeight: 88,
-    borderRadius: 16,
-    padding: 12,
-    gap: 8,
-    justifyContent: 'center',
-  },
-  quickLabel: {
-    fontFamily: customerFonts.bold,
-    fontSize: 12,
-  },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  category: {
-    width: '47%',
-    flexGrow: 1,
-    minHeight: 112,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    gap: 10,
-  },
-  categoryTitle: {
-    fontFamily: customerFonts.bold,
-    fontSize: 13,
-    color: customer.navy,
-    textAlign: 'center',
-  },
-  toolCard: {
-    width: 132,
-    backgroundColor: customer.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: customer.line,
-    padding: 12,
-    gap: 8,
-  },
-  toolIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toolName: { fontFamily: customerFonts.bold, fontSize: 13, color: customer.navy },
-  toolMeta: { fontFamily: customerFonts.medium, fontSize: 11, color: customer.muted },
-  recommendKicker: {
-    fontFamily: customerFonts.medium,
-    fontSize: 12,
-    color: customer.muted,
-    marginTop: -4,
-  },
-  recommend: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: customer.white,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: customer.line,
-    padding: 10,
-  },
-  recommendImage: { width: 74, height: 74 },
-  recommendImageRadius: { borderRadius: 14 },
-  recommendCopy: { flex: 1, gap: 4 },
-  recommendTitle: { fontFamily: customerFonts.bold, fontSize: 15, color: customer.navy },
-  recommendBody: { fontFamily: customerFonts.regular, fontSize: 12, color: customer.body },
-  play: {
+  avatarButton: { borderRadius: 20 },
+  guestAvatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: customer.teal,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  expertCard: {
-    width: 196,
-    backgroundColor: customer.white,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: customer.line,
-    padding: 14,
-    gap: 6,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  avatarText: { fontFamily: customerFonts.bold, color: customer.navy, fontSize: 14 },
-  expertName: { fontFamily: customerFonts.bold, fontSize: 14, color: customer.navy },
-  expertMeta: { fontFamily: customerFonts.regular, fontSize: 12, color: customer.body },
-  expertActions: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  ghostBtn: {
-    flex: 1,
-    minHeight: 36,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: customer.teal,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ghostBtnText: { fontFamily: customerFonts.bold, fontSize: 12, color: customer.teal },
-  solidBtn: {
-    flex: 1,
-    minHeight: 36,
-    borderRadius: 12,
-    backgroundColor: customer.teal,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  solidBtnText: { fontFamily: customerFonts.bold, fontSize: 12, color: customer.white },
-  programmeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: customer.white,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: customer.line,
-    padding: 10,
-  },
-  programmeImage: { width: 64, height: 64 },
-  programmeCopy: { flex: 1, gap: 2 },
-  continueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: customer.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: customer.line,
-    padding: 12,
-  },
-  continueIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
     backgroundColor: customer.mint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  stat: {
-    width: '47%',
-    flexGrow: 1,
-    borderRadius: 16,
-    padding: 14,
-    gap: 4,
+  greeting: { marginTop: 2 },
+  greetingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  greetingTitle: {
+    fontFamily: customerFonts.bold,
+    fontSize: 20,
+    color: customer.navy,
+    letterSpacing: -0.2,
   },
-  statValue: { fontFamily: customerFonts.bold, fontSize: 22, color: customer.navy },
-  statLabel: { fontFamily: customerFonts.medium, fontSize: 12, color: customer.body },
-  tipCard: {
+  signIn: { fontFamily: customerFonts.bold, fontSize: 14, color: customer.teal },
+  pressedText: { opacity: 0.7 },
+
+  hero: { borderRadius: 20, justifyContent: 'flex-end' },
+  heroWide: {
+    height: 380,
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    backgroundColor: customer.mint,
-    borderRadius: 16,
-    padding: 14,
+    overflow: 'hidden',
+    backgroundColor: customer.navy,
   },
-  tipText: {
-    flex: 1,
+  heroWideImage: { width: '40%', height: '100%' },
+  heroContent: { padding: 20, gap: 8 },
+  heroContentWide: { flex: 1, justifyContent: 'center', padding: 32 },
+  heroTitle: {
+    fontFamily: customerFonts.bold,
+    fontSize: 32,
+    lineHeight: 38,
+    color: customer.white,
+    letterSpacing: -0.6,
+  },
+  heroBody: {
     fontFamily: customerFonts.regular,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
+    color: 'rgba(255,255,255,0.88)',
+    maxWidth: 420,
+  },
+  heroActions: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  heroActionsStacked: { flexDirection: 'column' },
+
+  rail: { marginHorizontal: -16 },
+  railContent: { paddingHorizontal: 16, gap: 12 },
+  skeletonRow: { flexDirection: 'row', overflow: 'hidden' },
+
+  quickCard: {
+    width: 120,
+    borderRadius: 18,
+    backgroundColor: customer.white,
+    borderWidth: 1,
+    borderColor: customer.line,
+    padding: 8,
+  },
+  quickImage: { height: 92, borderRadius: 14 },
+  quickName: {
+    marginTop: 8,
+    marginHorizontal: 2,
+    minHeight: 34,
+    fontFamily: customerFonts.bold,
+    fontSize: 13,
+    lineHeight: 17,
     color: customer.navy,
   },
-  sessionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+
+  consult: {
+    marginTop: 10,
+    borderRadius: 20,
+    overflow: 'hidden',
     backgroundColor: customer.white,
-    borderRadius: 18,
     borderWidth: 1,
     borderColor: customer.line,
-    padding: 12,
   },
-  sessionNote: {
-    fontFamily: customerFonts.medium,
-    fontSize: 11,
-    color: customer.peachInk,
-    marginTop: 4,
-  },
-  proCard: {
-    backgroundColor: customer.navy,
-    borderRadius: 20,
-    padding: 18,
-    gap: 10,
-  },
-  proTitle: {
+  consultWide: { flexDirection: 'row-reverse', alignItems: 'stretch' },
+  consultImage: { width: '100%' },
+  consultImageWide: { width: '46%', minHeight: 220 },
+  consultBody: { padding: 20, gap: 8 },
+  consultBodyWide: { flex: 1, justifyContent: 'center' },
+  bannerTitle: {
     fontFamily: customerFonts.bold,
-    fontSize: 18,
-    color: customer.white,
+    fontSize: 21,
+    lineHeight: 27,
+    color: customer.navy,
+    letterSpacing: -0.3,
   },
-  proBody: {
+  bannerBody: {
     fontFamily: customerFonts.regular,
-    fontSize: 13,
-    lineHeight: 19,
-    color: 'rgba(255,255,255,0.82)',
-    marginBottom: 4,
+    fontSize: 14,
+    lineHeight: 21,
+    color: customer.body,
+    marginBottom: 6,
   },
+
+  expertCard: {
+    width: 184,
+    borderRadius: 18,
+    backgroundColor: customer.white,
+    borderWidth: 1,
+    borderColor: customer.line,
+    overflow: 'hidden',
+  },
+  expertPhoto: { height: 188 },
+  initialsWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  initials: { fontFamily: customerFonts.bold, fontSize: 40, color: customer.navy, opacity: 0.75 },
+  verified: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+  },
+  verifiedText: { fontFamily: customerFonts.bold, fontSize: 11, color: customer.navy },
+  expertBody: { padding: 12, gap: 3 },
+  expertName: { fontFamily: customerFonts.bold, fontSize: 15, color: customer.navy },
+  expertSpecialty: { fontFamily: customerFonts.regular, fontSize: 13, color: customer.body },
+  expertMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 4 },
+  rating: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaText: { fontFamily: customerFonts.medium, fontSize: 12, color: customer.muted },
+  viewProfile: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 },
+  viewProfileText: { fontFamily: customerFonts.bold, fontSize: 13, color: customer.teal },
+
+  categoryCard: { width: 132, gap: 8 },
+  categoryImage: { width: 132, height: 132, borderRadius: 18 },
+  categoryLabel: {
+    fontFamily: customerFonts.bold,
+    fontSize: 13,
+    lineHeight: 17,
+    color: customer.navy,
+    minHeight: 34,
+  },
+
+  toolList: {
+    borderRadius: 18,
+    backgroundColor: customer.white,
+    borderWidth: 1,
+    borderColor: customer.line,
+    paddingHorizontal: 14,
+  },
+  toolRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14 },
+  toolRowDivider: { borderTopWidth: 1, borderTopColor: customer.line },
+  toolImage: { width: 64, height: 64, borderRadius: 14 },
+  toolText: { flex: 1, gap: 3 },
+  toolName: { fontFamily: customerFonts.bold, fontSize: 15, color: customer.navy },
+  toolBlurb: { fontFamily: customerFonts.regular, fontSize: 13, lineHeight: 18, color: customer.body },
+  access: { fontFamily: customerFonts.bold, fontSize: 11, color: customer.teal, marginTop: 2 },
+  accessPaid: { color: '#B7791F' },
+
+  programmeCard: {
+    width: 260,
+    borderRadius: 18,
+    backgroundColor: customer.white,
+    borderWidth: 1,
+    borderColor: customer.line,
+    overflow: 'hidden',
+  },
+  programmeImage: { height: 146 },
+  programmeBody: { padding: 12, gap: 4 },
+  programmeTitle: { fontFamily: customerFonts.bold, fontSize: 15, lineHeight: 20, color: customer.navy },
+  programmeFee: { fontFamily: customerFonts.bold, fontSize: 13, color: customer.teal },
+
+  journey: { marginTop: 10, borderRadius: 20, minHeight: 210, justifyContent: 'center' },
+  journeyContent: { padding: 20, gap: 8, maxWidth: 360 },
+  journeyBody: { color: customer.navy },
+
+  proLink: { alignItems: 'center', paddingVertical: 12 },
+  proLinkText: { fontFamily: customerFonts.regular, fontSize: 13, color: customer.muted, textAlign: 'center' },
+  proLinkAction: { fontFamily: customerFonts.bold, color: customer.teal },
 });

@@ -7,6 +7,7 @@ import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import '@/utils/webAlert';
 import { ScreenTourBar } from '@/components/preview/ScreenTourBar';
 import { LoadingState } from '@/components/ui';
 import { FRONTEND_ONLY } from '@/constants/frontendOnly';

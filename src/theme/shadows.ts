@@ -6,7 +6,7 @@ type ShadowToken = Pick<
 >;
 
 const softShadow = (elevation: number, opacity: number): ShadowToken => ({
-  shadowColor: '#1C2A3A',
+  shadowColor: '#142B4D',
   shadowOffset: { width: 0, height: Math.max(1, Math.floor(elevation / 2)) },
   shadowOpacity: opacity,
   shadowRadius: elevation,
