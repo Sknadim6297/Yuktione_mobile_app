@@ -1,10 +1,10 @@
 import { useLocalSearchParams } from 'expo-router';
 
-import { ExpertProfileScreen } from '@/features/customer/ExpertScreens';
+import { ExpertProfileDetailScreen } from '@/features/experts/ExpertProfileDetailScreen';
 
-/** Reference screen 12 — expert profile. */
+/** Expert profile — website professionals/details/{id}. */
 export default function ExpertProfileRoute() {
   const params = useLocalSearchParams<{ id?: string }>();
   const id = typeof params.id === 'string' ? params.id : '';
-  return <ExpertProfileScreen id={id} />;
+  return <ExpertProfileDetailScreen id={id} />;
 }

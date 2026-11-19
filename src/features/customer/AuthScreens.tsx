@@ -8,6 +8,7 @@ import { isApiConfigured } from '@/constants/config';
 import { FRONTEND_ONLY } from '@/constants/frontendOnly';
 import { validateAuthIdentifier } from '@/features/auth/validation';
 import { startOtpVerificationFlow } from '@/features/auth/otp/startOtpVerificationFlow';
+import { leaveAuthAfterSignIn } from '@/features/auth/postAuthRoute';
 import {
   clearPendingRegistration,
   setPendingRegistration,
@@ -110,7 +111,7 @@ export function SignInScreen() {
     if (outcome.kind === 'success') {
       customerActions.signInFromApi(outcome.data.user);
       setBusy(false);
-      router.replace('/(tabs)/home');
+      leaveAuthAfterSignIn();
       return;
     }
 

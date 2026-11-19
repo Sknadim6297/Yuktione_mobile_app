@@ -20,8 +20,16 @@ export type OpenWebsiteOptions = {
  * Prefer this for login, registration, booking, and any session-sensitive flow.
  * Never automates CSRF, cookies, OTP, or payments.
  */
-export async function openWebsitePath(
+export function openWebsitePath(
   key: WebsitePathKey,
+  options: OpenWebsiteOptions = {},
+): Promise<boolean> {
+  return openOriginPath(WEBSITE_PATHS[key], options);
+}
+
+/** Same as openWebsitePath for a dynamic website path such as an expert profile. */
+export async function openOriginPath(
+  path: string,
   options: OpenWebsiteOptions = {},
 ): Promise<boolean> {
   if (!isApiConfigured()) {
@@ -32,7 +40,6 @@ export async function openWebsitePath(
     return false;
   }
 
-  const path = WEBSITE_PATHS[key];
   const url = buildOriginUrl(path);
   const confirm = options.confirm !== false;
 

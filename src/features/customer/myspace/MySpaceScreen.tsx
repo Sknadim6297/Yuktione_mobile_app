@@ -1,655 +1,300 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useQueries } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useState, type ReactNode } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { isApiConfigured } from '@/constants/config';
-import { FRONTEND_ONLY } from '@/constants/frontendOnly';
-import { formatWeekdayDate, moodById, toolById } from '@/features/customer/content';
 import {
-  formatStamp,
   useAccountScope,
   useActivitySummary,
-  useMyBookings,
+  useBookingOverview,
   useMyNotifications,
 } from '@/features/customer/myspace/accountData';
+import { profileImageUrl, useProfileQuery } from '@/features/customer/myspace/parts';
 import {
-  Avatar,
-  Card,
-  EmptyNote,
-  MenuRow,
-  QuickActionTile,
-  StatTile,
-  greetingFor,
-  myspace,
-  profileCompletion,
-  profileImageUrl,
-  useProfileQuery,
-} from '@/features/customer/myspace/parts';
+  GuestCard,
+  LogoutCard,
+  MenuCard,
+  MenuItem,
+  NotificationBell,
+  ProfileCard,
+  SpaceBackdrop,
+  SpaceHeader,
+  SpaceNotice,
+  SpaceTitle,
+  StatCard,
+  StatRow,
+} from '@/features/customer/myspace/SpaceDesign';
+import { Skeleton } from '@/features/customer/home/media';
 import { useCustomerState } from '@/features/customer/store';
-import { CustomerPage, IconButton, TealButton, TrendChart } from '@/features/customer/ui';
+import { BottomNav, IconButton } from '@/features/customer/ui';
 import { useSignOut } from '@/features/customer/useSignOut';
-import { fetchExpert } from '@/services/api/catalog';
 import { openWebsitePath } from '@/services/website/openWebsite';
-import { BrandGradient } from '@/components/brand';
-import { brand, brandGradients, customer, customerFonts } from '@/theme';
+import { brand, customer } from '@/theme';
 
-const SAVED_EXPERT_PREVIEW = 4;
+const MAX_FRAME = 640;
+
+const goBookings = () => router.push('/(tabs)/bookings');
+const goProfile = () => router.push('/account/personal-info');
+const goHistory = () => router.push({ pathname: '/account/tool-history', params: { kind: 'moods' } });
+const goSettings = () => router.push('/account/settings');
+const goHelp = () => router.push('/account/help');
+
+function SpacePage({
+  children,
+  refreshing,
+  onRefresh,
+}: {
+  children: ReactNode;
+  refreshing?: boolean;
+  onRefresh?: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const frame = Math.min(width, MAX_FRAME);
+  return (
+    <View style={styles.page}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={refreshing ?? false}
+              onRefresh={onRefresh}
+              tintColor={brand.plum}
+              colors={[brand.plum]}
+            />
+          ) : undefined
+        }
+      >
+        <SpaceBackdrop height={insets.top + 270} />
+        <View style={[styles.content, { width: frame, paddingTop: Math.max(insets.top, 10) }]}>{children}</View>
+      </ScrollView>
+      <BottomNav preset="space" active="my-space" />
+    </View>
+  );
+}
 
 export function MySpaceScreen() {
   const state = useCustomerState();
-  const signedIn = Boolean(state.session);
-  const profileQuery = useProfileQuery(signedIn);
-  const { busy: signingOut, confirmSignOut } = useSignOut();
+  if (!state.ready) return <LoadingSpace />;
+  return state.session ? <SignedInSpace /> : <GuestSpace />;
+}
 
-  const savedExpertIds = state.favouriteExpertIds.slice(0, SAVED_EXPERT_PREVIEW);
-  const expertQueries = useQueries({
-    queries: savedExpertIds.map((id) => ({
-      queryKey: ['v1', 'expert-summary', id],
-      queryFn: async () => {
-        const result = await fetchExpert(id);
-        if (!result.ok) throw new Error(result.message);
-        return result.expert;
-      },
-      enabled: signedIn && !FRONTEND_ONLY && isApiConfigured(),
-      staleTime: 5 * 60_000,
-    })),
-  });
-
-  const { enabled: accountLive } = useAccountScope();
-  const activity = useActivitySummary(30);
-  const upcoming = useMyBookings('upcoming');
-  const notifications = useMyNotifications(3);
-  const upcomingCount = upcoming.data?.pages[0]?.counts.upcoming ?? null;
-  const nextBooking = upcoming.data?.pages[0]?.bookings[0];
-  const nextSlot = nextBooking?.next_session ?? (nextBooking
-    ? { date: nextBooking.booking_date, time_slot: nextBooking.time_slot }
-    : null);
-  const unreadCount = notifications.data?.pages[0]?.unread_count ?? 0;
-  const latestNotifications = notifications.data?.pages[0]?.notifications ?? [];
-
-  const header = (
-    <>
-      <View>
-        <IconButton
-          icon="notifications-outline"
-          label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
-          onPress={() => router.push('/notifications')}
-        />
-        {unreadCount > 0 ? <View style={styles.bellDot} pointerEvents="none" /> : null}
-      </View>
-      <IconButton icon="settings-outline" label="Settings" onPress={() => router.push('/account/settings')} />
-    </>
+function LoadingSpace() {
+  return (
+    <SpacePage>
+      <SpaceHeader right={null} />
+      <SpaceTitle title="My Space" />
+      <Skeleton style={styles.skeletonCard} />
+      <Skeleton style={styles.skeletonStats} />
+      <Skeleton style={styles.skeletonMenu} />
+    </SpacePage>
   );
+}
 
-  if (!state.ready) {
-    return (
-      <CustomerPage nav="space" active="my-space">
-        <ActivityIndicator color={customer.teal} style={{ marginTop: 48 }} />
-      </CustomerPage>
-    );
-  }
+/** Website: /user/* is behind auth:user, so guests only see sign-in and public destinations. */
+function GuestSpace() {
+  const compact = useWindowDimensions().width < 360;
+  return (
+    <SpacePage>
+      <SpaceHeader right={<IconButton icon="settings-outline" label="App settings" onPress={goSettings} />} />
+      <SpaceTitle title="My Space" />
+      <GuestCard
+        compact={compact}
+        onSignIn={() => router.push('/auth')}
+        onSignUp={() => router.push('/auth/sign-up')}
+      />
+      <MenuCard>
+        <MenuItem
+          first
+          icon="grid-outline"
+          title="Explore Tools"
+          subtitle="Wellbeing, career and planning tools"
+          onPress={() => router.push('/(tabs)/tools')}
+        />
+        <MenuItem
+          icon="people-outline"
+          title="Find an Expert"
+          subtitle="Browse verified YuktiOne experts"
+          onPress={() => router.push('/(tabs)/experts')}
+        />
+        <MenuItem icon="help-circle-outline" title="Help & Support" subtitle="Get assistance and FAQs" onPress={goHelp} />
+        <MenuItem icon="settings-outline" title="App Settings" subtitle="App details and device data" onPress={goSettings} />
+      </MenuCard>
+    </SpacePage>
+  );
+}
 
-  if (!signedIn) {
-    return (
-      <CustomerPage nav="space" active="my-space">
-        <View style={styles.signedOut}>
-          <View style={styles.signedOutIcon}>
-            <Ionicons name="person-circle-outline" size={44} color={customer.teal} />
-          </View>
-          <Text style={styles.signedOutTitle}>Your space is waiting</Text>
-          <Text style={[myspace.body, styles.center]}>
-            Sign in with the same email and password you use on the YuktiOne website to see your
-            profile, bookings and saved items.
-          </Text>
-          <TealButton label="Sign in" icon="log-in-outline" onPress={() => router.push('/auth')} />
-          <Pressable accessibilityRole="button" onPress={() => router.push('/auth/sign-up')} hitSlop={8}>
-            <Text style={styles.link}>New to YuktiOne? Create an account</Text>
-          </Pressable>
-        </View>
-      </CustomerPage>
-    );
-  }
+function SignedInSpace() {
+  const state = useCustomerState();
+  const compact = useWindowDimensions().width < 360;
+  const profileQuery = useProfileQuery(true);
+  const { enabled: accountLive } = useAccountScope();
+  const overview = useBookingOverview();
+  const activity = useActivitySummary(30);
+  const notifications = useMyNotifications(3);
+  const { busy: signingOut, confirmSignOut } = useSignOut();
+  const [refreshing, setRefreshing] = useState(false);
 
   const profile = profileQuery.data;
-  const name = profile?.name || state.session?.name || 'YuktiOne member';
+  const name = profile?.name || state.session?.name || '';
   const email = profile?.email || state.session?.email || '';
   const phone = profile?.customer_profile?.phone || profile?.phone || state.session?.phone || '';
-  const completion = profile ? profileCompletion(profile) : null;
-  const location = [profile?.customer_profile?.city, profile?.customer_profile?.state]
-    .filter(Boolean)
-    .join(', ');
+  const unread = notifications.data?.pages[0]?.unread_count ?? 0;
 
-  const savedTools = state.savedToolIds
-    .map((id) => toolById(id))
-    .filter((tool): tool is NonNullable<typeof tool> => Boolean(tool));
-  const moods = state.moodHistory.slice(-7);
-  const latestMood = state.moodHistory[state.moodHistory.length - 1];
-  const averageMood = moods.length
-    ? (moods.reduce((sum, point) => sum + point.score, 0) / moods.length).toFixed(1)
-    : null;
+  const allTime = activity.data?.all_time;
+  const historyCount = allTime ? String(allTime.mood + allTime.journal + allTime.gratitude) : null;
+  const bookings = overview.data;
+  const bookingCount = bookings ? `${bookings.bookingCount}${bookings.partial ? '+' : ''}` : null;
+  const upcomingCount = bookings ? String(bookings.upcomingSlots.length) : null;
+  const countsFailed = accountLive && (overview.isError || activity.isError);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.allSettled([profileQuery.refetch(), overview.refetch(), activity.refetch(), notifications.refetch()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [profileQuery, overview, activity, notifications]);
 
   return (
-    <CustomerPage nav="space" active="my-space" right={header}>
-      <View style={styles.profile}>
-        <BrandGradient colors={brandGradients.panel} angle={135} style={StyleSheet.absoluteFill} />
-        <View style={styles.profileTop}>
-          <Avatar name={name} uri={profileImageUrl(profile)} size={64} />
-          <View style={styles.profileText}>
-            <Text style={styles.greeting}>{greetingFor(new Date())},</Text>
-            <Text style={styles.name} numberOfLines={1}>{name}</Text>
-            {email ? <Text style={styles.contact} numberOfLines={1}>{email}</Text> : null}
-            {phone ? <Text style={styles.contact} numberOfLines={1}>{phone}</Text> : null}
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Edit profile"
-            onPress={() => router.push('/account/personal-info')}
-            style={styles.editButton}
-            hitSlop={6}
-          >
-            <Ionicons name="create-outline" size={18} color={customer.white} />
-          </Pressable>
-        </View>
-        {completion !== null ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/account/personal-info')}
-            style={styles.completion}
-          >
-            <View style={styles.completionRow}>
-              <Text style={styles.completionLabel}>Profile completion</Text>
-              <Text style={styles.completionValue}>{completion}%</Text>
-            </View>
-            <View style={styles.track}>
-              <View style={[styles.fill, { width: `${completion}%` }]} />
-            </View>
-            <Text style={styles.completionHint}>
-              {completion < 100
-                ? 'Add your address and contact details to complete your profile.'
-                : location || 'Your profile is complete.'}
-            </Text>
-          </Pressable>
-        ) : null}
-        {profileQuery.isLoading ? <ActivityIndicator color={customer.white} /> : null}
-        {profileQuery.isError ? (
-          <Text style={styles.profileError}>
-            Could not load your latest profile. {profileQuery.error.message}
-          </Text>
-        ) : null}
-      </View>
-
-      <Card
-        title="Your activity · last 30 days"
-        source="account"
-        action="Details"
-        onAction={() => router.push('/progress')}
-      >
-        {!accountLive ? (
-          <EmptyNote
-            icon="cloud-offline-outline"
-            title="Not connected to your account"
-            body="Account activity appears here when the app is signed in to the YuktiOne server."
-          />
-        ) : activity.isLoading || upcoming.isLoading ? (
-          <ActivityIndicator color={customer.teal} />
-        ) : activity.isError ? (
-          <EmptyNote
-            icon="cloud-offline-outline"
-            title="Could not load your activity"
-            body={activity.error.message}
-            actionLabel="Try again"
-            onAction={() => void activity.refetch()}
-          />
-        ) : (
+    <SpacePage refreshing={refreshing} onRefresh={accountLive ? () => void refresh() : undefined}>
+      <SpaceHeader
+        right={
           <>
-            <View style={myspace.grid}>
-              <StatTile
-                icon="calendar-outline"
-                value={upcomingCount === null ? '–' : String(upcomingCount)}
-                label="Upcoming sessions"
-                tint={customer.mint}
-                ink={customer.teal}
-              />
-              <StatTile
-                icon="happy-outline"
-                value={String(activity.data?.mood.count ?? 0)}
-                label="Mood check-ins"
-                tint={customer.green}
-                ink={customer.greenInk}
-              />
-              <StatTile
-                icon="book-outline"
-                value={String(activity.data?.journal.count ?? 0)}
-                label="Journal entries"
-                tint={customer.lavender}
-                ink={customer.lavenderInk}
-              />
-              <StatTile
-                icon="sunny-outline"
-                value={String(activity.data?.gratitude.count ?? 0)}
-                label="Gratitude entries"
-                tint={customer.gold}
-                ink={customer.goldInk}
-              />
-            </View>
-            {nextBooking ? (
-              <Pressable
-                accessibilityRole="button"
-                style={styles.savedRow}
-                onPress={() => router.push('/(tabs)/bookings')}
-              >
-                <Avatar
-                  name={nextBooking.professional?.name ?? 'Expert'}
-                  uri={nextBooking.professional?.photo_url}
-                  size={42}
-                />
-                <View style={styles.savedText}>
-                  <Text style={myspace.strong} numberOfLines={1}>
-                    Next: {nextBooking.professional?.name ?? nextBooking.service_name ?? 'Session'}
-                  </Text>
-                  <Text style={myspace.meta} numberOfLines={1}>
-                    {[
-                      nextSlot?.date ? formatWeekdayDate(nextSlot.date) : null,
-                      nextSlot?.time_slot,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ') || 'Date to be confirmed'}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={customer.muted} />
-              </Pressable>
-            ) : null}
-            {activity.data?.mood.latest ? (
-              <Text style={myspace.meta}>
-                Latest mood check-in: {activity.data.mood.latest.label ?? 'Recorded'} ·{' '}
-                {formatStamp(activity.data.mood.latest.checked_in_at)}
-              </Text>
-            ) : null}
-            <Text style={myspace.meta}>
-              Mood, journal and gratitude entries saved in the app or on the website.
-            </Text>
+            {accountLive ? <NotificationBell unread={unread} /> : null}
+            <IconButton icon="settings-outline" label="Account settings" onPress={goSettings} />
           </>
-        )}
-      </Card>
+        }
+      />
+      <SpaceTitle title="My Space" />
 
-      <Card title="On this device" source="device">
-        <View style={myspace.grid}>
-          <StatTile
-            icon="happy-outline"
-            value={String(state.moodHistory.length)}
-            label="Quick mood taps"
-            tint={customer.green}
-            ink={customer.greenInk}
-          />
-          <StatTile
-            icon="bookmark-outline"
-            value={String(state.savedToolIds.length)}
-            label="Saved tools"
-            tint={customer.mint}
-            ink={customer.teal}
-          />
-          <StatTile
-            icon="heart-outline"
-            value={String(state.favouriteExpertIds.length)}
-            label="Saved experts"
-            tint={customer.pink}
-            ink={customer.pinkInk}
-          />
-          <StatTile
-            icon="book-outline"
-            value={String(state.journal.length)}
-            label="Journal notes"
-            tint={customer.lavender}
-            ink={customer.lavenderInk}
-          />
-        </View>
-        <Text style={myspace.meta}>Kept only on this phone and not shared with your account.</Text>
-      </Card>
+      <ProfileCard
+        compact={compact}
+        name={name}
+        email={email}
+        phone={phone}
+        photo={profileImageUrl(profile)}
+        emailVerified={profile?.email_verified === true}
+        loading={profileQuery.isLoading}
+        onEdit={goProfile}
+      />
+      {profileQuery.isError ? (
+        <SpaceNotice
+          text="We couldn't refresh your profile. Tap to try again."
+          onPress={() => void profileQuery.refetch()}
+        />
+      ) : null}
 
-      <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>Quick actions</Text>
-      </View>
-      <View style={myspace.grid}>
-        <QuickActionTile
+      <StatRow>
+        <StatCard
+          icon="time-outline"
+          label="Tool History"
+          value={historyCount}
+          loading={accountLive && activity.isLoading}
+          onPress={goHistory}
+        />
+        <StatCard
           icon="calendar-outline"
-          label="My Bookings"
-          hint="Sessions with experts"
-          tint={customer.mint}
-          ink={customer.teal}
-          onPress={() => router.push('/(tabs)/bookings')}
+          label="Bookings"
+          value={bookingCount}
+          loading={accountLive && overview.isLoading}
+          onPress={goBookings}
         />
-        <QuickActionTile
-          icon="leaf-outline"
-          label="My Tools"
-          hint="Tools you saved"
-          tint={customer.green}
-          ink={customer.greenInk}
-          onPress={() => router.push('/my-tools')}
+        <StatCard
+          icon="alarm-outline"
+          label="Upcoming"
+          value={upcomingCount}
+          loading={accountLive && overview.isLoading}
+          onPress={goBookings}
         />
-        <QuickActionTile
-          icon="layers-outline"
-          label="Programmes"
-          hint="Guided journeys"
-          tint={customer.lavender}
-          ink={customer.lavenderInk}
-          onPress={() => router.push('/programmes')}
+      </StatRow>
+      {countsFailed ? (
+        <SpaceNotice
+          text="Some counts couldn't be loaded. Tap to try again."
+          onPress={() => {
+            if (overview.isError) void overview.refetch();
+            if (activity.isError) void activity.refetch();
+          }}
         />
-        <QuickActionTile
-          icon="stats-chart-outline"
-          label="My Progress"
-          hint="Mood and goals"
-          tint={customer.sky}
-          ink={customer.skyInk}
-          onPress={() => router.push('/progress')}
+      ) : null}
+
+      <MenuCard>
+        <MenuItem
+          first
+          icon="bookmark-outline"
+          title="Saved Tools"
+          subtitle="Your saved tool results, kept on the website"
+          external
+          onPress={() => void openWebsitePath('customerSavedTools')}
         />
-        <QuickActionTile
-          icon="bar-chart-outline"
-          label="Reports"
-          hint="Your mood insights"
-          tint={customer.peach}
-          ink={customer.peachInk}
-          onPress={() => router.push('/reports')}
+        <MenuItem icon="time-outline" title="Tool History" subtitle="Your past tool results" onPress={goHistory} />
+        <MenuItem
+          icon="calendar-outline"
+          title="My Bookings"
+          subtitle="Your expert consultations"
+          onPress={goBookings}
         />
-        <QuickActionTile
+        <MenuItem icon="people-outline" title="My Profile" subtitle="View and update your profile" onPress={goProfile} />
+        <MenuItem
+          icon="settings-outline"
+          title="Account Settings"
+          subtitle="App details, device data and notifications"
+          onPress={goSettings}
+        />
+        <MenuItem
+          icon="shield-checkmark-outline"
+          title="Privacy & Security"
+          subtitle="Password, signed-in device and policies"
+          onPress={() => router.push('/account/security')}
+        />
+        <MenuItem icon="help-circle-outline" title="Help & Support" subtitle="Get assistance and FAQs" onPress={goHelp} />
+      </MenuCard>
+
+      <MenuCard label="More on the website">
+        <MenuItem
+          first
+          icon="receipt-outline"
+          title="Billing"
+          subtitle="Payments and invoices"
+          external
+          onPress={() => void openWebsitePath('customerBilling')}
+        />
+        <MenuItem
           icon="gift-outline"
-          label="Refer & Earn"
-          hint="Yukti Points"
-          tint={customer.gold}
-          ink={customer.goldInk}
+          title="Refer & Earn"
+          subtitle="Yukti Points and referrals"
           external
           onPress={() => void openWebsitePath('customerReferEarn')}
         />
-      </View>
+        <MenuItem
+          icon="chatbubbles-outline"
+          title="Message Support"
+          subtitle="Chat with the YuktiOne team"
+          external
+          onPress={() => void openWebsitePath('customerSupportChat')}
+        />
+        <MenuItem
+          icon="add-circle-outline"
+          title="Additional Services"
+          subtitle="Additional consultation services and payments"
+          external
+          onPress={() => void openWebsitePath('customerAdditionalServices')}
+        />
+      </MenuCard>
 
-      <Card title="Saved & favourites" source="device">
-        {savedTools.length === 0 && savedExpertIds.length === 0 ? (
-          <EmptyNote
-            icon="bookmark-outline"
-            title="Nothing saved yet"
-            body="Tap the bookmark on a tool or the heart on an expert profile to keep it here."
-            actionLabel="Browse experts →"
-            onAction={() => router.push('/(tabs)/experts')}
-          />
-        ) : null}
-        {savedExpertIds.map((id, index) => {
-          const expert = expertQueries[index]?.data;
-          const loading = expertQueries[index]?.isLoading;
-          return (
-            <Pressable
-              key={`expert-${id}`}
-              accessibilityRole="button"
-              style={styles.savedRow}
-              onPress={() => router.push({ pathname: '/experts/profile/[id]', params: { id } })}
-            >
-              {expert?.photo_url ? (
-                <Image source={{ uri: expert.photo_url }} style={styles.savedPhoto} />
-              ) : (
-                <Avatar name={expert?.name ?? 'Expert'} size={42} />
-              )}
-              <View style={styles.savedText}>
-                <Text style={myspace.strong} numberOfLines={1}>
-                  {expert?.name ?? (loading ? 'Loading expert…' : `Expert #${id}`)}
-                </Text>
-                <Text style={myspace.meta} numberOfLines={1}>
-                  {expert?.specialization ?? 'Saved expert'}
-                </Text>
-              </View>
-              <Ionicons name="heart" size={16} color={customer.pinkInk} />
-            </Pressable>
-          );
-        })}
-        {state.favouriteExpertIds.length > SAVED_EXPERT_PREVIEW ? (
-          <Text style={myspace.meta}>
-            +{state.favouriteExpertIds.length - SAVED_EXPERT_PREVIEW} more saved experts
-          </Text>
-        ) : null}
-        {savedTools.slice(0, 4).map((tool) => (
-          <Pressable
-            key={`tool-${tool.id}`}
-            accessibilityRole="button"
-            style={styles.savedRow}
-            onPress={() => router.push({ pathname: '/tools/[id]', params: { id: tool.id } })}
-          >
-            <View style={[styles.savedToolIcon, { backgroundColor: tool.tint }]}>
-              <Ionicons name={tool.icon} size={18} color={tool.ink} />
-            </View>
-            <View style={styles.savedText}>
-              <Text style={myspace.strong} numberOfLines={1}>{tool.name}</Text>
-              <Text style={myspace.meta} numberOfLines={1}>{tool.blurb}</Text>
-            </View>
-            <Ionicons name="bookmark" size={16} color={customer.teal} />
-          </Pressable>
-        ))}
-      </Card>
-
-      <Card
-        title="Mood trend on this device"
-        source="device"
-        tone="lavender"
-        action={moods.length ? 'Open →' : undefined}
-        onAction={() => router.push('/reports')}
-      >
-        {moods.length >= 2 ? (
-          <>
-            <View style={styles.insightRow}>
-              <View>
-                <Text style={myspace.meta}>Average mood (last {moods.length} taps)</Text>
-                <Text style={styles.insightValue}>{averageMood}/10</Text>
-              </View>
-              {latestMood ? (
-                <View style={styles.moodPill}>
-                  <Text style={styles.moodEmoji}>{moodById(latestMood.mood).emoji}</Text>
-                  <Text style={styles.moodText}>{moodById(latestMood.mood).label}</Text>
-                </View>
-              ) : null}
-            </View>
-            <TrendChart
-              values={moods.map((point) => point.score)}
-              labels={moods.map((point) => point.date.slice(8))}
-            />
-          </>
-        ) : (
-          <EmptyNote
-            icon="pulse-outline"
-            title={moods.length === 1 ? 'One mood tap so far' : 'No mood taps on this device yet'}
-            body="The trend appears after two quick mood taps from Home."
-            actionLabel="Check in now →"
-            onAction={() => router.push('/(tabs)/home')}
-          />
-        )}
-      </Card>
-
-      <Card
-        title={unreadCount > 0 ? `Notifications · ${unreadCount} unread` : 'Notifications'}
-        source="account"
-        action={latestNotifications.length ? 'See all' : undefined}
-        onAction={() => router.push('/notifications')}
-      >
-        {!accountLive ? (
-          <EmptyNote
-            icon="cloud-offline-outline"
-            title="Not connected to your account"
-            body="Notifications load from your YuktiOne account once the app is connected."
-          />
-        ) : notifications.isLoading ? (
-          <ActivityIndicator color={customer.teal} />
-        ) : notifications.isError ? (
-          <EmptyNote
-            icon="cloud-offline-outline"
-            title="Could not load notifications"
-            body={notifications.error.message}
-            actionLabel="Try again"
-            onAction={() => void notifications.refetch()}
-          />
-        ) : latestNotifications.length === 0 ? (
-          <EmptyNote
-            icon="notifications-off-outline"
-            title="You're all caught up"
-            body="Booking updates from YuktiOne will show here. Confirmations also arrive by email."
-          />
-        ) : (
-          latestNotifications.map((item) => (
-            <Pressable
-              key={item.id}
-              accessibilityRole="button"
-              style={styles.savedRow}
-              onPress={() => router.push('/notifications')}
-            >
-              <View style={[styles.unreadDot, item.read && styles.readDot]} />
-              <View style={styles.savedText}>
-                <Text style={myspace.strong} numberOfLines={1}>{item.title}</Text>
-                <Text style={myspace.meta} numberOfLines={1}>
-                  {item.message ?? formatStamp(item.created_at)}
-                </Text>
-              </View>
-            </Pressable>
-          ))
-        )}
-      </Card>
-
-      <Card title="Account">
-        <View>
-          <MenuRow
-            icon="person-outline"
-            label="Personal information"
-            detail="Name, contact and address"
-            onPress={() => router.push('/account/personal-info')}
-          />
-          <MenuRow
-            icon="shield-checkmark-outline"
-            label="Privacy & security"
-            detail="Password, sessions and policies"
-            onPress={() => router.push('/account/security')}
-          />
-          <MenuRow
-            icon="help-buoy-outline"
-            label="Help & support"
-            detail="Contact us, FAQs and WhatsApp"
-            onPress={() => router.push('/account/help')}
-          />
-          <MenuRow
-            icon="settings-outline"
-            label="Settings"
-            detail="App version and device data"
-            onPress={() => router.push('/account/settings')}
-          />
-          <MenuRow
-            icon="receipt-outline"
-            label="Billing & invoices"
-            detail="Payments and invoices on the website"
-            external
-            last
-            onPress={() => void openWebsitePath('customerBilling')}
-          />
-        </View>
-      </Card>
-
-      <Pressable
-        accessibilityRole="button"
-        disabled={signingOut}
-        onPress={confirmSignOut}
-        style={({ pressed }) => [styles.logout, (pressed || signingOut) && { opacity: 0.7 }]}
-      >
-        <Ionicons name="log-out-outline" size={18} color={customer.danger} />
-        <Text style={styles.logoutText}>{signingOut ? 'Signing out…' : 'Sign out'}</Text>
-      </Pressable>
-    </CustomerPage>
+      <LogoutCard busy={signingOut} onPress={confirmSignOut} />
+    </SpacePage>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { textAlign: 'center' },
-  signedOut: {
-    marginTop: 32,
-    backgroundColor: customer.white,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: customer.line,
-    padding: 24,
-    gap: 14,
-    alignItems: 'stretch',
-  },
-  signedOutIcon: {
-    alignSelf: 'center',
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: customer.mint,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  signedOutTitle: {
-    fontFamily: customerFonts.bold,
-    fontSize: 22,
-    color: customer.navy,
-    textAlign: 'center',
-  },
-  link: { fontFamily: customerFonts.bold, fontSize: 13, color: customer.teal, textAlign: 'center' },
-  profile: { backgroundColor: brand.plumDeep, borderRadius: 24, padding: 18, gap: 14, overflow: 'hidden' },
-  profileTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  profileText: { flex: 1, gap: 1 },
-  greeting: { fontFamily: customerFonts.medium, fontSize: 13, color: 'rgba(255,255,255,0.78)' },
-  name: { fontFamily: customerFonts.bold, fontSize: 21, color: customer.white },
-  contact: { fontFamily: customerFonts.regular, fontSize: 12.5, color: 'rgba(255,255,255,0.86)' },
-  editButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 13,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  completion: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 12, gap: 8 },
-  completionRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  completionLabel: { fontFamily: customerFonts.medium, fontSize: 13, color: 'rgba(255,255,255,0.86)' },
-  completionValue: { fontFamily: customerFonts.bold, fontSize: 13, color: customer.white },
-  completionHint: { fontFamily: customerFonts.regular, fontSize: 12, color: 'rgba(255,255,255,0.78)' },
-  track: { height: 8, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.16)', overflow: 'hidden' },
-  fill: { height: 8, borderRadius: 8, backgroundColor: '#F4A0C6' },
-  profileError: { fontFamily: customerFonts.regular, fontSize: 12, color: '#F6C4CC' },
-  sectionHead: { marginBottom: -4 },
-  sectionTitle: { fontFamily: customerFonts.bold, fontSize: 16, color: customer.navy },
-  savedRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  savedPhoto: { width: 42, height: 42, borderRadius: 21, backgroundColor: customer.mint },
-  savedToolIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  savedText: { flex: 1, gap: 2 },
-  insightRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  insightValue: { fontFamily: customerFonts.bold, fontSize: 24, color: customer.navy },
-  moodPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: customer.white,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: customer.teal },
-  readDot: { backgroundColor: customer.line },
-  bellDot: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: customer.danger,
-    borderWidth: 1.5,
-    borderColor: customer.white,
-  },
-  moodEmoji: { fontSize: 16 },
-  moodText: { fontFamily: customerFonts.medium, fontSize: 13, color: customer.navy },
-  logout: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 50,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#F0CDD3',
-    backgroundColor: customer.white,
-  },
-  logoutText: { fontFamily: customerFonts.bold, fontSize: 15, color: customer.danger },
+  page: { flex: 1, backgroundColor: customer.canvas },
+  scroll: { alignItems: 'center', paddingBottom: 28 },
+  content: { paddingHorizontal: 16, gap: 18 },
+  skeletonCard: { height: 128, borderRadius: 24 },
+  skeletonStats: { height: 92, borderRadius: 18 },
+  skeletonMenu: { height: 300, borderRadius: 20 },
 });

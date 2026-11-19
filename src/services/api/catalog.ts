@@ -65,14 +65,32 @@ export type ApiExpert = {
   verified: boolean;
   status: string;
   active: boolean;
-  session_rates?: {
-    id: number;
-    session_type: string;
-    num_sessions: number;
-    rate_per_session: number;
-    final_rate: number;
-    duration: string;
-  }[];
+  session_rates?: ApiSessionRate[];
+  /** Profile-only fields (GET /experts/{id}), as on the website profile page. */
+  quote?: string | null;
+  chips?: string[];
+  qualifications?: { title: string; place: string }[];
+  service_description?: string | null;
+  lowest_session_price?: number | null;
+  reviews?: ApiExpertReview[];
+};
+
+/** Bookable service-level plan (website "Select session plan"). */
+export type ApiSessionRate = {
+  id: number;
+  session_type: string;
+  num_sessions: number;
+  rate_per_session: number;
+  final_rate: number;
+  duration: string;
+  features?: string[];
+};
+
+export type ApiExpertReview = {
+  id: number;
+  rating: number;
+  text: string | null;
+  created_at: string | null;
 };
 
 export type ApiProgrammeEvent = {
@@ -160,6 +178,13 @@ export type ApiExpertCategory = {
   image_url?: string | null;
 };
 
+export type ApiExpertsMeta = {
+  current_page: number;
+  per_page: number;
+  total: number;
+  last_page: number;
+};
+
 export async function fetchExperts(params?: {
   q?: string;
   specialty?: string;
@@ -167,8 +192,17 @@ export async function fetchExperts(params?: {
   category?: string;
   featured?: boolean;
   limit?: number;
+  page?: number;
 }): Promise<
-  | { ok: true; experts: ApiExpert[]; categories: ApiExpertCategory[] }
+  | {
+      ok: true;
+      experts: ApiExpert[];
+      categories: ApiExpertCategory[];
+      /** Website experience filter buckets, key → label (e.g. "2-4" → "2–4 years"). */
+      experienceBuckets: Record<string, string>;
+      /** Filtered total and paging; null for `featured` requests. */
+      meta: ApiExpertsMeta | null;
+    }
   | { ok: false; message: string }
 > {
   const search = new URLSearchParams();
@@ -177,14 +211,23 @@ export async function fetchExperts(params?: {
   if (params?.category) search.set('category', params.category);
   if (params?.featured) search.set('featured', '1');
   if (params?.limit) search.set('limit', String(params.limit));
+  if (params?.page) search.set('page', String(params.page));
   const qs = search.toString();
   const result = await apiClient.get<{
     status: string;
     experts: ApiExpert[];
     categories?: ApiExpertCategory[];
+    experience_buckets?: Record<string, string>;
+    meta?: ApiExpertsMeta | null;
   }>(`/experts${qs ? `?${qs}` : ''}`, false, 'v1');
   if (!result.ok) return { ok: false, message: messageFrom(result) };
-  return { ok: true, experts: result.data.experts ?? [], categories: result.data.categories ?? [] };
+  return {
+    ok: true,
+    experts: result.data.experts ?? [],
+    categories: result.data.categories ?? [],
+    experienceBuckets: result.data.experience_buckets ?? {},
+    meta: result.data.meta ?? null,
+  };
 }
 
 export async function fetchExpert(

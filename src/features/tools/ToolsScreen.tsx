@@ -1,26 +1,29 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
+  type TextStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BrandGradient, Eyebrow, PrimaryButton, SecondaryButton } from '@/components/brand';
-import { PressCard, RemoteImage, Skeleton } from '@/features/customer/home/media';
-import { openLiveTool, toolVisual } from '@/features/customer/liveCatalog';
-import { BottomNav, IconButton, ScreenHeader, SearchField } from '@/features/customer/ui';
+import { PrimaryButton, SecondaryButton } from '@/components/brand';
+import { DiscoverHeaderActions } from '@/features/customer/DiscoverHeaderActions';
+import { Skeleton } from '@/features/customer/home/media';
+import { SpaceBackdrop, SpaceHeader, SpaceTitle } from '@/features/customer/myspace/SpaceDesign';
+import { BottomNav } from '@/features/customer/ui';
+import { ToolTile, toolTileHeight } from '@/features/tools/ToolTile';
 import {
   allToolsCount,
-  cardDescription,
   categoryCounts,
-  categoryIcon,
   getRememberedToolFilters,
   matchesCategory,
   matchesQuery,
@@ -33,27 +36,37 @@ import {
   websiteListed,
 } from '@/features/tools/toolsCatalogue';
 import type { ApiExploreCategory, ApiTool } from '@/services/api/catalog';
-import { resolveImageUrl, websiteImage } from '@/services/media/imageUrl';
 import { brand, customer, customerFonts, shadows } from '@/theme';
 
 const PAD = 16;
 const GAP = 12;
+const MAX_FRAME = 960;
 
-function columnsFor(width: number): number {
-  const content = width - PAD * 2;
-  if (content >= 680) return 3;
-  if (content >= 300) return 2;
+/** Website tools.blade.php hero lead. */
+const SUBTITLE = 'Tools for your growth';
+
+/** The pill border already marks focus; the browser's ring inside it is redundant ('none' is web-only). */
+const WEB_NO_OUTLINE = Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as TextStyle) : null;
+
+function columnsFor(content: number): number {
+  if (content >= 860) return 4;
+  if (content >= 600) return 3;
+  if (content >= 280) return 2;
   return 1;
 }
 
 /**
  * Tools tab — website /tools (tools.blade.php + partials/tools-catalog.blade.php):
- * hero → category chips → results toolbar (count, clear, search) → card grid → pager.
+ * header → title → search → category chips → result count → tool grid → pager.
  */
 export function ToolsScreen() {
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const columns = columnsFor(width);
-  const cardWidth = (width - PAD * 2 - GAP * (columns - 1)) / columns;
+  const frame = Math.min(width, MAX_FRAME);
+  const side = (width - frame) / 2 + PAD;
+  const content = frame - PAD * 2;
+  const columns = columnsFor(content);
+  const cardWidth = Math.floor((content - GAP * (columns - 1)) / columns);
 
   const remembered = getRememberedToolFilters();
   const [text, setRawText] = useState(remembered.query);
@@ -102,29 +115,27 @@ export function ToolsScreen() {
   }, [catalogue]);
 
   const renderItem = useCallback(
-    ({ item }: { item: ApiTool }) => <ToolCard tool={item} width={cardWidth} />,
+    ({ item }: { item: ApiTool }) => <ToolTile tool={item} width={cardWidth} />,
     [cardWidth],
   );
 
   const header = (
-    <View style={styles.headerStack}>
-      <ToolsHero width={width} />
+    <View style={[styles.headerStack, { paddingTop: Math.max(insets.top, 10) }]}>
+      <View pointerEvents="none" style={[styles.backdrop, { left: -side, right: -side, height: insets.top + 250 }]}>
+        <SpaceBackdrop height={insets.top + 250} />
+      </View>
+      <SpaceHeader right={<DiscoverHeaderActions />} />
+      <SpaceTitle title="Tools" subtitle={SUBTITLE} />
       {TOOLS_LIVE && catalogue.data ? (
         <>
+          <ToolSearch value={text} onChange={setText} />
           <CategoryChips
             categories={categories}
             counts={counts}
             allCount={allCount}
             selected={validCategory}
             onSelect={setCategory}
-          />
-          <SearchField
-            value={text}
-            onChangeText={setText}
-            onClear={() => setText('')}
-            placeholder="Search tools…"
-            accessibilityLabel="Search tools"
-            maxLength={TOOLS_QUERY_MAX}
+            side={side}
           />
           <View style={styles.toolbar}>
             <Text style={styles.count} accessibilityLiveRegion="polite">
@@ -132,8 +143,15 @@ export function ToolsScreen() {
               {filtering ? <Text style={styles.countHint}> matching filters</Text> : null}
             </Text>
             {filtering ? (
-              <Pressable accessibilityRole="button" onPress={clearFilters} hitSlop={8}>
-                <Text style={styles.clear}>Clear filters</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear filters"
+                onPress={clearFilters}
+                hitSlop={8}
+                style={({ pressed }) => [styles.clear, pressed && styles.pressed]}
+              >
+                <Ionicons name="close" size={15} color={brand.plum} />
+                <Text style={styles.clearText}>Clear</Text>
               </Pressable>
             ) : null}
           </View>
@@ -166,7 +184,7 @@ export function ToolsScreen() {
     const label = categories.find((item) => item.slug === validCategory)?.label;
     empty = (
       <StatePanel
-        icon="grid-outline"
+        icon="search-outline"
         title="No tools match these filters"
         body="Try another category or search term, or clear filters to browse everything available."
         primary={{ label: 'Clear filters', onPress: clearFilters }}
@@ -187,9 +205,6 @@ export function ToolsScreen() {
 
   return (
     <View style={styles.page}>
-      <ScreenHeader
-        right={<IconButton icon="bookmark-outline" label="Saved tools" onPress={() => router.push('/my-tools')} />}
-      />
       <FlatList
         key={`cols-${columns}`}
         data={catalogue.isError ? [] : page}
@@ -213,12 +228,13 @@ export function ToolsScreen() {
             </View>
           ) : undefined
         }
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingHorizontal: side }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
         initialNumToRender={8}
         windowSize={7}
+        removeClippedSubviews={false}
         refreshControl={
           TOOLS_LIVE ? (
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={brand.plum} colors={[brand.plum]} />
@@ -230,28 +246,30 @@ export function ToolsScreen() {
   );
 }
 
-function ToolsHero({ width }: { width: number }) {
-  const art = Math.round(Math.min(Math.max(width * 0.34, 112), 200));
+function ToolSearch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [focused, setFocused] = useState(false);
   return (
-    <View style={styles.hero}>
-      <BrandGradient colors={['#FFFFFF', brand.pearl, brand.plumSoft]} angle={135} style={StyleSheet.absoluteFill} />
-      <View style={styles.heroCopy}>
-        <Eyebrow label="Yukti Tools" />
-        <Text style={styles.heroTitle} accessibilityRole="header">
-          Try Our <Text style={styles.heroAccent}>Tools</Text>
-        </Text>
-        <Text style={styles.heroLead}>
-          Practical tools for mental, emotional and personal growth — open what you need, when you need it.
-        </Text>
-      </View>
-      <RemoteImage
-        uri={websiteImage('tools')}
-        resizeMode="contain"
-        background="transparent"
-        fallback={<View />}
-        label="Mindful wellness — calm focus with growth, health and clarity"
-        style={{ width: art, height: art }}
+    <View style={[styles.search, focused && styles.searchFocused]}>
+      <Ionicons name="search-outline" size={20} color={focused ? brand.plum : customer.muted} />
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder="Search tools..."
+        placeholderTextColor={customer.muted}
+        maxLength={TOOLS_QUERY_MAX}
+        autoCapitalize="none"
+        autoCorrect={false}
+        returnKeyType="search"
+        accessibilityLabel="Search tools"
+        style={[styles.searchInput, WEB_NO_OUTLINE]}
       />
+      {value ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => onChange('')} hitSlop={10}>
+          <Ionicons name="close-circle" size={20} color={customer.muted} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -262,23 +280,25 @@ const CategoryChips = memo(function CategoryChips({
   allCount,
   selected,
   onSelect,
+  side,
 }: {
   categories: ApiExploreCategory[];
   counts: Record<string, number>;
   allCount: number;
   selected: string;
   onSelect: (slug: string) => void;
+  side: number;
 }) {
   const options = [
-    { slug: '', label: 'All Tools', icon: 'grid', count: allCount },
-    ...categories.map((item) => ({ ...item, count: counts[item.slug] ?? 0 })),
+    { slug: '', label: 'All', count: allCount },
+    ...categories.map((item) => ({ slug: item.slug, label: item.label, count: counts[item.slug] ?? 0 })),
   ];
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      style={styles.chipRail}
-      contentContainerStyle={styles.chipRow}
+      style={{ marginHorizontal: -side }}
+      contentContainerStyle={[styles.chipRow, { paddingHorizontal: side }]}
       accessibilityRole="tablist"
       accessibilityLabel="Tool categories"
     >
@@ -289,15 +309,12 @@ const CategoryChips = memo(function CategoryChips({
             key={option.slug || 'all'}
             accessibilityRole="tab"
             aria-selected={on}
-            accessibilityLabel={`${option.label}, ${option.count} ${option.count === 1 ? 'tool' : 'tools'}`}
+            accessibilityLabel={`${option.slug ? option.label : 'All Tools'}, ${option.count} ${option.count === 1 ? 'tool' : 'tools'}`}
             onPress={() => onSelect(option.slug)}
             style={({ pressed }) => [styles.chip, on && styles.chipOn, pressed && styles.pressed]}
           >
-            <Ionicons name={categoryIcon(option.icon)} size={15} color={on ? brand.white : brand.plum} />
             <Text style={[styles.chipText, on && styles.chipTextOn]}>{option.label}</Text>
-            <Text style={[styles.chipCount, on && styles.chipTextOn, option.count === 0 && !on && styles.chipCountZero]}>
-              ({option.count})
-            </Text>
+            <Text style={[styles.chipCount, on && styles.chipCountOn]}>{option.count}</Text>
           </Pressable>
         );
       })}
@@ -305,57 +322,11 @@ const CategoryChips = memo(function CategoryChips({
   );
 });
 
-const ToolCard = memo(function ToolCard({ tool, width }: { tool: ApiTool; width: number }) {
-  const visual = toolVisual(tool);
-  const description = cardDescription(tool);
-  const artHeight = Math.round(Math.min(width * 0.72, 150));
-  return (
-    <PressCard
-      onPress={() => openLiveTool(tool)}
-      label={`${tool.name}. ${description}`}
-      hint="Opens this tool"
-      style={[styles.card, { width }]}
-    >
-      <View style={[styles.cardArt, { height: artHeight }]}>
-        <BrandGradient colors={[brand.pearl, brand.plumSoft]} angle={160} style={StyleSheet.absoluteFill} />
-        <RemoteImage
-          uri={resolveImageUrl(tool.image_url)}
-          resizeMode="contain"
-          inset={10}
-          background="transparent"
-          fallback={
-            <View style={styles.artFallback}>
-              <Ionicons name={visual.icon} size={40} color={brand.plum} />
-            </View>
-          }
-          style={StyleSheet.absoluteFill}
-        />
-      </View>
-      <View style={styles.cardBody}>
-        <View style={[styles.cardIcon, { backgroundColor: visual.tint }]}>
-          <Ionicons name={visual.icon} size={16} color={visual.ink} />
-        </View>
-        <Text style={styles.cardTitle} numberOfLines={2}>
-          {tool.name}
-        </Text>
-        <Text style={styles.cardDesc} numberOfLines={3}>
-          {description}
-        </Text>
-        <View style={styles.cardGo}>
-          <View style={styles.cardGoIcon}>
-            <Ionicons name="arrow-forward" size={14} color={brand.white} />
-          </View>
-        </View>
-      </View>
-    </PressCard>
-  );
-});
-
 function SkeletonGrid({ columns, cardWidth }: { columns: number; cardWidth: number }) {
   return (
     <View style={styles.skeletonGrid} accessibilityLabel="Loading tools">
-      {Array.from({ length: columns * 2 }, (_, index) => (
-        <Skeleton key={index} style={{ width: cardWidth, height: 260, borderRadius: 20 }} />
+      {Array.from({ length: Math.max(columns * 2, 4) }, (_, index) => (
+        <Skeleton key={index} style={{ width: cardWidth, height: toolTileHeight(cardWidth), borderRadius: 20 }} />
       ))}
     </View>
   );
@@ -393,98 +364,78 @@ function StatePanel({
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: customer.canvas },
-  list: { paddingHorizontal: PAD, paddingBottom: 28, gap: GAP },
-  headerStack: { gap: 14, marginBottom: 2 },
+  list: { paddingBottom: 28, gap: GAP },
+  headerStack: { gap: 16, marginBottom: 2 },
+  backdrop: { position: 'absolute', top: 0 },
   columnRow: { gap: GAP },
-  pressed: { opacity: 0.85 },
+  pressed: { opacity: 0.8 },
 
-  hero: {
+  search: {
+    minHeight: 50,
+    borderRadius: 25,
+    borderWidth: 1.5,
+    borderColor: customer.line,
+    backgroundColor: brand.white,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    borderRadius: 22,
-    overflow: 'hidden',
-    paddingVertical: 18,
-    paddingLeft: 18,
-    paddingRight: 6,
-    borderWidth: 1,
-    borderColor: brand.divider,
+    gap: 10,
+    ...shadows.sm,
   },
-  heroCopy: { flex: 1, gap: 8 },
-  heroTitle: {
-    fontFamily: customerFonts.bold,
-    fontSize: 28,
-    lineHeight: 33,
-    letterSpacing: -0.8,
+  searchFocused: { borderColor: brand.plum },
+  searchInput: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: customerFonts.regular,
+    fontSize: 15,
     color: brand.ink,
+    paddingVertical: 12,
   },
-  heroAccent: { color: brand.plum },
-  heroLead: { fontFamily: customerFonts.regular, fontSize: 13.5, lineHeight: 20, color: brand.grey },
 
-  chipRail: { marginHorizontal: -PAD },
-  chipRow: { paddingHorizontal: PAD, gap: 8 },
+  chipRow: { gap: 8, paddingVertical: 2 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    minHeight: 40,
-    paddingHorizontal: 14,
+    minHeight: 38,
+    paddingHorizontal: 15,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: brand.silver,
+    borderColor: brand.divider,
     backgroundColor: brand.white,
   },
-  chipOn: { backgroundColor: brand.plum, borderColor: brand.plum },
+  chipOn: { backgroundColor: brand.plum, borderColor: brand.plum, ...shadows.brand },
   chipText: { fontFamily: customerFonts.semibold, fontSize: 13, color: brand.ink },
   chipTextOn: { color: brand.white },
-  chipCount: { fontFamily: customerFonts.medium, fontSize: 12, color: brand.grey },
-  chipCountZero: { opacity: 0.7 },
-
-  toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  count: { flex: 1, fontFamily: customerFonts.bold, fontSize: 14, color: brand.ink },
-  countHint: { fontFamily: customerFonts.regular, color: brand.grey },
-  clear: { fontFamily: customerFonts.bold, fontSize: 13, color: brand.plum },
-
-  card: {
-    flexGrow: 0,
-    backgroundColor: brand.white,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: brand.divider,
+  chipCount: {
+    fontFamily: customerFonts.semibold,
+    fontSize: 11,
+    color: brand.grey,
+    minWidth: 18,
+    textAlign: 'center',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 999,
     overflow: 'hidden',
-    ...shadows.sm,
+    backgroundColor: brand.plumSoft,
   },
-  cardArt: { overflow: 'hidden' },
-  artFallback: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
-  cardBody: { flex: 1, padding: 12, gap: 6 },
-  cardIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
+  chipCountOn: { color: brand.plum, backgroundColor: brand.white },
+
+  toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 34 },
+  count: { flex: 1, fontFamily: customerFonts.bold, fontSize: 15, color: brand.ink },
+  countHint: { fontFamily: customerFonts.regular, fontSize: 13, color: brand.grey },
+  clear: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -27,
-    borderWidth: 2,
-    borderColor: brand.white,
+    gap: 4,
+    minHeight: 34,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: brand.plumSoftDeep,
+    backgroundColor: brand.white,
   },
-  cardTitle: {
-    fontFamily: customerFonts.bold,
-    fontSize: 15,
-    lineHeight: 19,
-    letterSpacing: -0.2,
-    color: brand.ink,
-    minHeight: 38,
-  },
-  cardDesc: { flex: 1, fontFamily: customerFonts.regular, fontSize: 12.5, lineHeight: 17, color: brand.grey, minHeight: 51 },
-  cardGo: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 'auto', paddingTop: 4 },
-  cardGoIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: brand.plum,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  clearText: { fontFamily: customerFonts.semibold, fontSize: 13, color: brand.plum },
 
   skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   pager: { alignItems: 'center', gap: 10, paddingTop: 8 },

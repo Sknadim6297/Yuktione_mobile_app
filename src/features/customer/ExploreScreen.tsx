@@ -155,7 +155,9 @@ export function ExploreScreen() {
         <Text style={styles.title} accessibilityRole="header">
           Explore
         </Text>
-        <Text style={styles.subtitle}>Discover guidance that fits your journey.</Text>
+        <Text style={styles.subtitle} numberOfLines={1}>
+          Guidance for your journey
+        </Text>
       </View>
 
       <SearchEntry />

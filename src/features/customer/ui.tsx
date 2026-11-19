@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { BrandLogo, PrimaryButton, SecondaryButton } from '@/components/brand';
+import { FloatingTabBar } from '@/features/customer/FloatingTabBar';
 import { useSignOut } from '@/features/customer/useSignOut';
 import { brand, customer, customerFonts, shadows } from '@/theme';
 
@@ -138,39 +139,25 @@ function outlineIcon(icon: keyof typeof Ionicons.glyphMap): keyof typeof Ionicon
   return name in Ionicons.glyphMap ? name : icon;
 }
 
+/** The one shared bottom bar; every screen renders it through here (see FloatingTabBar). */
 export function BottomNav({ preset, active }: { preset: NavPreset; active: NavId }) {
-  const insets = useSafeAreaInsets();
+  const items = PRESETS[preset];
+  const tabs = items.map((item) => ({
+    id: item.id,
+    label: NAV[item.id].label,
+    icon: NAV[item.id].icon,
+    outlineIcon: outlineIcon(NAV[item.id].icon),
+  }));
   return (
-    <View style={[styles.nav, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-      {PRESETS[preset].map((item) => {
-        const visual = NAV[item.id];
-        const selected = item.id === active;
-        const href = item.href ?? visual.href;
-        return (
-          <Pressable
-            key={`${preset}-${item.id}`}
-            accessibilityRole="tab"
-            accessibilityState={{ selected }}
-            accessibilityLabel={visual.label}
-            onPress={() => {
-              if (!selected) router.navigate(href);
-            }}
-            style={styles.navItem}
-          >
-            <View style={[styles.navIconWrap, selected && styles.navIconActive]}>
-              <Ionicons
-                name={selected ? visual.icon : outlineIcon(visual.icon)}
-                size={21}
-                color={selected ? brand.plum : customer.muted}
-              />
-              <Text style={[styles.navLabel, selected && styles.navLabelActive]} numberOfLines={1}>
-                {visual.label}
-              </Text>
-            </View>
-          </Pressable>
-        );
-      })}
-    </View>
+    <FloatingTabBar
+      tabs={tabs}
+      activeId={active}
+      onSelect={(id) => {
+        if (id === active) return;
+        const item = items.find((entry) => entry.id === id);
+        if (item) router.navigate(item.href ?? NAV[item.id].href);
+      }}
+    />
   );
 }
 
@@ -208,7 +195,6 @@ export function CustomerPage({
         ref={scrollRef}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={dismissKeyboardOnDrag ? 'on-drag' : 'none'}
-        automaticallyAdjustKeyboardInsets
         refreshControl={
           onRefresh ? (
             <RefreshControl
@@ -678,26 +664,6 @@ const styles = StyleSheet.create({
     color: customer.body,
     marginTop: -6,
   },
-  nav: {
-    flexDirection: 'row',
-    backgroundColor: customer.white,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: brand.silver,
-    paddingTop: 6,
-    paddingHorizontal: 2,
-    ...shadows.md,
-  },
-  navItem: { flex: 1, alignItems: 'center', minHeight: 48, justifyContent: 'center' },
-  navIconWrap: {
-    alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    borderRadius: 16,
-    minWidth: 60,
-  },
-  navIconActive: { backgroundColor: brand.plumSoft },
-  navLabel: { fontFamily: customerFonts.medium, fontSize: 10.5, color: customer.muted, marginTop: 2 },
-  navLabelActive: { color: brand.plum, fontFamily: customerFonts.bold },
   chartLabels: { flexDirection: 'row', justifyContent: 'space-between' },
   chartLabel: { fontSize: 10, color: customer.muted, fontFamily: customerFonts.regular },
   empty: { fontFamily: customerFonts.regular, color: customer.muted, fontSize: 13 },

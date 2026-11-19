@@ -2,14 +2,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
 
-import { BrandGradient, Eyebrow, PrimaryButton, SecondaryButton } from '@/components/brand';
+import { BrandGradient, PrimaryButton, SecondaryButton } from '@/components/brand';
 import { RemoteImage, Skeleton } from '@/features/customer/home/media';
 import { toolVisual } from '@/features/customer/liveCatalog';
 import { CustomerPage } from '@/features/customer/ui';
-import { cardDescription, ToolsRequestError, WEBSITE_ACCESS } from '@/features/tools/toolsCatalogue';
+import {
+  cardDescription,
+  categoryWash,
+  runsInApp,
+  ToolsRequestError,
+  WEBSITE_ACCESS,
+} from '@/features/tools/toolsCatalogue';
 import type { ApiTool } from '@/services/api/catalog';
 import { resolveImageUrl, resolveWebsiteUrl } from '@/services/media/imageUrl';
-import { brand, customerFonts } from '@/theme';
+import { brand, customerFonts, shadows } from '@/theme';
 
 export function backToTools(): void {
   if (router.canGoBack()) router.back();
@@ -32,14 +38,15 @@ export async function openToolOnWebsite(tool: ApiTool): Promise<void> {
 /** Website illustration, category and card copy — shared by every tool detail screen. */
 export function ToolHeroCard({ tool }: { tool: ApiTool }) {
   const visual = toolVisual(tool);
+  const wash = categoryWash(tool);
+  const inApp = runsInApp(tool);
   return (
     <View style={styles.hero}>
       <View style={styles.heroArt}>
-        <BrandGradient colors={[brand.pearl, brand.plumSoft]} angle={160} style={StyleSheet.absoluteFill} />
+        <BrandGradient colors={[wash[0], wash[1], brand.white]} angle={170} style={StyleSheet.absoluteFill} />
         <RemoteImage
           uri={resolveImageUrl(tool.image_url)}
           resizeMode="contain"
-          inset={12}
           background="transparent"
           label={tool.name}
           fallback={
@@ -47,19 +54,32 @@ export function ToolHeroCard({ tool }: { tool: ApiTool }) {
               <Ionicons name={visual.icon} size={52} color={brand.plum} />
             </View>
           }
-          style={StyleSheet.absoluteFill}
+          style={styles.heroImage}
         />
       </View>
       <View style={styles.heroBody}>
-        {tool.explore_category ? <Eyebrow label={tool.explore_category.label} /> : null}
+        <View style={styles.badges}>
+          {tool.explore_category ? <Badge label={tool.explore_category.label} /> : null}
+          <Badge label={tool.access_type === 'paid' ? 'Paid' : 'Free'} />
+          <Badge
+            icon={inApp ? 'phone-portrait-outline' : 'globe-outline'}
+            label={inApp ? 'In the app' : 'Runs on the website'}
+          />
+        </View>
         <Text style={styles.title} accessibilityRole="header">
           {tool.name}
         </Text>
         <Text style={styles.lead}>{cardDescription(tool)}</Text>
-        <View style={styles.badges}>
-          <Text style={styles.badge}>{tool.access_type === 'paid' ? 'Paid' : 'Free'}</Text>
-        </View>
       </View>
+    </View>
+  );
+}
+
+function Badge({ label, icon }: { label: string; icon?: keyof typeof Ionicons.glyphMap }) {
+  return (
+    <View style={styles.badge}>
+      {icon ? <Ionicons name={icon} size={12} color={brand.plum} /> : null}
+      <Text style={styles.badgeText}>{label}</Text>
     </View>
   );
 }
@@ -175,27 +195,29 @@ export function ToolErrorScreen({ error, onRetry }: { error: Error | null; onRet
 const styles = StyleSheet.create({
   hero: {
     backgroundColor: brand.white,
-    borderRadius: 22,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: brand.divider,
+    borderColor: '#F3E6ED',
     overflow: 'hidden',
+    ...shadows.sm,
   },
-  heroArt: { height: 200 },
+  heroArt: { height: 176, alignItems: 'center', justifyContent: 'center' },
+  heroImage: { width: 150, height: 150 },
   heroFallback: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
-  heroBody: { padding: 18, gap: 8 },
-  title: { fontFamily: customerFonts.bold, fontSize: 26, lineHeight: 31, letterSpacing: -0.7, color: brand.ink },
+  heroBody: { paddingHorizontal: 18, paddingTop: 6, paddingBottom: 18, gap: 8 },
+  title: { fontFamily: customerFonts.bold, fontSize: 24, lineHeight: 29, letterSpacing: -0.6, color: brand.ink },
   lead: { fontFamily: customerFonts.regular, fontSize: 14.5, lineHeight: 21, color: brand.grey },
-  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   badge: {
-    fontFamily: customerFonts.bold,
-    fontSize: 11.5,
-    color: brand.plum,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: brand.plumSoft,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    overflow: 'hidden',
   },
+  badgeText: { fontFamily: customerFonts.semibold, fontSize: 11.5, color: brand.plum },
   section: { gap: 6 },
   sectionTitle: { fontFamily: customerFonts.bold, fontSize: 17, color: brand.ink },
   body: { fontFamily: customerFonts.regular, fontSize: 14, lineHeight: 21, color: brand.grey },

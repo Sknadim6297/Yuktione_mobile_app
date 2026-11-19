@@ -1,20 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Linking,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  type KeyboardTypeOptions,
-} from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { APP_CONFIG, isApiConfigured } from '@/constants/config';
 import { SUPPORT_WHATSAPP_URL } from '@/constants/websiteUrls';
@@ -24,25 +12,12 @@ import {
   useMarkNotificationRead,
   useMyNotifications,
 } from '@/features/customer/myspace/accountData';
-import {
-  Avatar,
-  Card,
-  EmptyNote,
-  MenuRow,
-  SourceTag,
-  myspace,
-  profileCompletion,
-  profileImageUrl,
-  profileQueryKey,
-  useProfileQuery,
-} from '@/features/customer/myspace/parts';
+import { Card, EmptyNote, MenuRow, SourceTag, myspace } from '@/features/customer/myspace/parts';
 import { customerActions, useCustomerState } from '@/features/customer/store';
 import { CustomerPage, TealButton } from '@/features/customer/ui';
 import { useSignOut } from '@/features/customer/useSignOut';
-import type { ApiUser } from '@/services/api/auth';
 import { requestPasswordReset } from '@/services/api/auth';
 import type { MyNotification } from '@/services/api/mySpace';
-import { updateProfile } from '@/services/api/profile';
 import { openWebsitePath } from '@/services/website/openWebsite';
 import { customer, customerFonts } from '@/theme';
 
@@ -65,197 +40,6 @@ function SignInRequired() {
         actionLabel="Sign in →"
         onAction={() => router.push('/auth')}
       />
-    </CustomerPage>
-  );
-}
-
-type ProfileDraft = {
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  notes: string;
-};
-
-function draftFromUser(user: ApiUser): ProfileDraft {
-  const profile = user.customer_profile;
-  return {
-    name: profile?.name || user.name || '',
-    email: profile?.email || user.email || '',
-    phone: profile?.phone || user.phone || '',
-    address: profile?.address || '',
-    city: profile?.city || '',
-    state: profile?.state || '',
-    zip: profile?.zip_code || '',
-    notes: profile?.notes || '',
-  };
-}
-
-function Field({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  keyboardType,
-  multiline,
-  required,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (value: string) => void;
-  placeholder?: string;
-  keyboardType?: KeyboardTypeOptions;
-  multiline?: boolean;
-  required?: boolean;
-}) {
-  return (
-    <View style={styles.field}>
-      <Text style={myspace.label}>
-        {label}
-        {required ? <Text style={styles.required}> *</Text> : null}
-      </Text>
-      <TextInput
-        style={[myspace.input, multiline && styles.multiline]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder ?? label}
-        placeholderTextColor={customer.muted}
-        keyboardType={keyboardType}
-        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
-        multiline={multiline}
-        textAlignVertical={multiline ? 'top' : 'center'}
-      />
-    </View>
-  );
-}
-
-export function PersonalInfoScreen() {
-  const state = useCustomerState();
-  const signedIn = Boolean(state.session);
-  const queryClient = useQueryClient();
-  const profileQuery = useProfileQuery(signedIn);
-  const [edits, setEdits] = useState<ProfileDraft | null>(null);
-  const [saving, setSaving] = useState(false);
-  const profile = profileQuery.data;
-  const draft = edits ?? (profile ? draftFromUser(profile) : null);
-
-  if (state.ready && !signedIn) return <SignInRequired />;
-
-  const set = (key: keyof ProfileDraft) => (value: string) =>
-    setEdits(draft ? { ...draft, [key]: value } : null);
-
-  const save = async () => {
-    if (!draft || saving) return;
-    const missing = (
-      [
-        ['name', 'Full name'],
-        ['email', 'Email'],
-        ['city', 'City'],
-        ['state', 'State'],
-        ['zip', 'PIN / ZIP code'],
-      ] as const
-    ).filter(([key]) => !draft[key].trim());
-    if (missing.length) {
-      Alert.alert('Missing details', `Please fill in: ${missing.map(([, label]) => label).join(', ')}.`);
-      return;
-    }
-    setSaving(true);
-    try {
-      const result = await updateProfile({
-        name: draft.name.trim(),
-        email: draft.email.trim(),
-        phone: draft.phone.trim() || undefined,
-        address: draft.address.trim() || undefined,
-        notes: draft.notes.trim() || undefined,
-        city: draft.city.trim(),
-        state: draft.state.trim(),
-        zip_code: draft.zip.trim(),
-      });
-      if (!result.ok) {
-        Alert.alert('Could not update profile', result.message);
-        return;
-      }
-      customerActions.signInFromApi(result.user);
-      queryClient.setQueryData(profileQueryKey(result.user.id), result.user);
-      setEdits(null);
-      Alert.alert('Profile updated', 'Your changes are saved to your YuktiOne account and show on the website too.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <CustomerPage onBack={() => router.back()}>
-      <PageIntro
-        title="Personal information"
-        intro="These details are shared with the YuktiOne website. Changes here update your account everywhere."
-      />
-      {profileQuery.isLoading || !draft ? (
-        profileQuery.isError ? (
-          <EmptyNote
-            icon="cloud-offline-outline"
-            title="Could not load your profile"
-            body={profileQuery.error.message}
-            actionLabel="Try again →"
-            onAction={() => void profileQuery.refetch()}
-          />
-        ) : (
-          <ActivityIndicator color={customer.teal} />
-        )
-      ) : (
-        <>
-          <Card>
-            <View style={styles.photoRow}>
-              <Avatar name={draft.name || 'Y'} uri={profileImageUrl(profile)} size={56} />
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text style={myspace.strong}>Profile photo</Text>
-                <Text style={myspace.meta}>
-                  {profile ? `Profile ${profileCompletion(profile)}% complete. ` : ''}
-                  Photos are changed on the website.
-                </Text>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Change photo on website"
-                onPress={() => void openWebsitePath('customerProfile')}
-                hitSlop={6}
-              >
-                <Ionicons name="open-outline" size={18} color={customer.teal} />
-              </Pressable>
-            </View>
-          </Card>
-          <Card title="Contact" source="account">
-            <Field label="Full name" value={draft.name} onChangeText={set('name')} required />
-            <Field label="Email" value={draft.email} onChangeText={set('email')} keyboardType="email-address" required />
-            <Field label="Phone" value={draft.phone} onChangeText={set('phone')} keyboardType="phone-pad" />
-          </Card>
-          <Card title="Address" source="account">
-            <Field label="Address" value={draft.address} onChangeText={set('address')} />
-            <View style={styles.pair}>
-              <View style={{ flex: 1 }}>
-                <Field label="City" value={draft.city} onChangeText={set('city')} required />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="State" value={draft.state} onChangeText={set('state')} required />
-              </View>
-            </View>
-            <Field label="PIN / ZIP code" value={draft.zip} onChangeText={set('zip')} keyboardType="number-pad" required />
-          </Card>
-          <Card title="Notes for your experts" source="account">
-            <Field
-              label="Notes"
-              value={draft.notes}
-              onChangeText={set('notes')}
-              placeholder="Anything you would like experts to know (optional)"
-              multiline
-            />
-          </Card>
-          <TealButton label={saving ? 'Saving…' : 'Save changes'} icon="checkmark" onPress={() => void save()} disabled={saving} />
-        </>
-      )}
     </CustomerPage>
   );
 }
@@ -552,11 +336,6 @@ export function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   intro: { gap: 6, marginBottom: 2 },
-  field: { gap: 0 },
-  required: { color: customer.danger },
-  multiline: { minHeight: 96, paddingTop: 12 },
-  pair: { flexDirection: 'row', gap: 10 },
-  photoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   bold: { fontFamily: customerFonts.bold, color: customer.navy },
   infoRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   dangerButton: {

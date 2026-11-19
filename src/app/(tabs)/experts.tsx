@@ -1,6 +1,5 @@
-import { ExpertsHomeScreen } from '@/features/customer/ExpertScreens';
+import { ExpertsDirectoryScreen } from '@/features/experts/ExpertsDirectoryScreen';
 
-/** Reference screen 10 — Talk to an Expert. */
-export default function ExpertsTabRoute() {
-  return <ExpertsHomeScreen />;
+export default function ExpertsTab() {
+  return <ExpertsDirectoryScreen />;
 }

@@ -1,10 +1,6 @@
-import { useLocalSearchParams } from 'expo-router';
+import { CategoryDetailScreen } from '@/features/categories/CategoryDetailScreen';
 
-import { CategoryScreen } from '@/features/customer/DiscoverScreens';
-
-/** Reference screen 9 — category landing. */
-export default function CategoryRoute() {
-  const params = useLocalSearchParams<{ slug?: string }>();
-  const slug = typeof params.slug === 'string' ? params.slug : '';
-  return <CategoryScreen slug={slug} />;
+/** Website /categories/{slug}: Home "Explore by Need" cards open here. */
+export default function CategoryDetailRoute() {
+  return <CategoryDetailScreen />;
 }

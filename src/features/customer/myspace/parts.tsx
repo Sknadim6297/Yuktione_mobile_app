@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { buildOriginUrl, isApiConfigured } from '@/constants/config';
@@ -87,8 +87,16 @@ function initialsOf(name: string): string {
 
 export function Avatar({ name, uri, size = 64 }: { name: string; uri?: string | null; size?: number }) {
   const shape = { width: size, height: size, borderRadius: size / 2 };
-  if (uri) {
-    return <Image source={{ uri }} style={[styles.avatarImage, shape]} accessibilityLabel={name} />;
+  const [failedUri, setFailedUri] = useState<string | null>(null);
+  if (uri && uri !== failedUri) {
+    return (
+      <Image
+        source={{ uri }}
+        style={[styles.avatarImage, shape]}
+        accessibilityLabel={name}
+        onError={() => setFailedUri(uri)}
+      />
+    );
   }
   return (
     <View style={[styles.avatar, shape]} accessibilityLabel={name}>

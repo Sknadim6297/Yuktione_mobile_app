@@ -64,7 +64,7 @@ export function timeAgo(iso: string | null | undefined, now = Date.now()): strin
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return '';
   const seconds = Math.max(1, Math.round(Math.abs(now - then) / 1000));
-  const [unit, size] = AGO_UNITS.find(([, length]) => seconds >= length) ?? AGO_UNITS[AGO_UNITS.length - 1];
+  const [unit, size] = AGO_UNITS.find(([, length]) => seconds >= length) ?? ['second', 1];
   const count = Math.floor(seconds / size);
   return `${count} ${unit}${count === 1 ? '' : 's'} ${now >= then ? 'ago' : 'from now'}`;
 }
@@ -146,6 +146,8 @@ export type BookingOverview = {
   /** Session rows dated today or later with status pending/confirmed, soonest first. */
   upcomingSlots: UpcomingSlot[];
   todayCount: number;
+  /** Booking records read (each booking can hold several sessions). */
+  bookingCount: number;
   totalSessions: number;
   completedSessions: number;
   /** Five most recently created bookings. */
@@ -185,6 +187,7 @@ export function summariseBookings(bookings: MyBooking[], today: string): Omit<Bo
   return {
     upcomingSlots,
     todayCount: upcomingSlots.filter((slot) => slot.date === today).length,
+    bookingCount: bookings.length,
     totalSessions,
     completedSessions,
     recent: bookings.slice(0, 5),

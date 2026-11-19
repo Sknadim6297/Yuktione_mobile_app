@@ -1,6 +1,6 @@
-import { ExpertsBrowseScreen } from '@/features/customer/ExpertScreens';
+import { ExpertsDirectoryScreen } from '@/features/experts/ExpertsDirectoryScreen';
 
-/** Reference screen 11 — experts list and filters. */
+/** Category / search entry points (Home, Explore, Search) open the same directory with `category` or `q`. */
 export default function ExpertsBrowseRoute() {
-  return <ExpertsBrowseScreen />;
+  return <ExpertsDirectoryScreen />;
 }

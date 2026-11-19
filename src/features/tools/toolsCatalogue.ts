@@ -171,6 +171,37 @@ export const WEBSITE_ACCESS: Record<string, WebsiteAccessRule> = {
   'tarot-reflection': 'login-required',
 };
 
+/** Tools with a native mobile runner; every other tool opens its website hand-off screen. */
+const IN_APP_TOOL_SLUGS = new Set([
+  'daily-mood-check-in',
+  'digital-journal',
+  'gratitude-journal',
+  'bmi-bmr-calculator',
+]);
+
+export function runsInApp(tool: Pick<ApiTool, 'slug'>): boolean {
+  return IN_APP_TOOL_SLUGS.has(tool.slug);
+}
+
+/** Soft brand washes per website category, used behind tool art. */
+const CATEGORY_WASH: Record<string, readonly [string, string]> = {
+  'mental-health': ['#FCE8F1', '#FFF8FB'],
+  'astrology-tarot': ['#EFE6F6', '#FBF7FD'],
+  relationships: ['#FDE9EE', '#FFF8FA'],
+  'career-business': ['#F2EAF8', '#FCF9FE'],
+  'money-finance': ['#F8F0E6', '#FFFBF6'],
+  'health-wellness': ['#F8EAF1', '#FFF8FB'],
+  parenting: ['#FCEDEF', '#FFF9FA'],
+  lifestyle: ['#F8F3F1', '#FFFCFB'],
+  spirituality: ['#F3ECF8', '#FCFAFE'],
+  creativity: ['#FBEFF4', '#FFFAFC'],
+  'nutrition-fitness': ['#FAEFE8', '#FFFAF7'],
+};
+
+export function categoryWash(tool: Pick<ApiTool, 'explore_category'>): readonly [string, string] {
+  return CATEGORY_WASH[tool.explore_category?.slug ?? ''] ?? ['#F8EAF1', '#FFF8FB'];
+}
+
 /** Filters survive leaving and re-entering the Tools tab, like the website's query string. */
 let rememberedFilters = { query: '', category: '' };
 
