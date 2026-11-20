@@ -1,17 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { AuthShell, FormInput, PrimaryButton } from '@/components/brand';
 import { isApiConfigured } from '@/constants/config';
 import { FRONTEND_ONLY } from '@/constants/frontendOnly';
+import { AuthNotice, AuthSteps } from '@/features/auth/AuthParts';
+import { leaveAuthAfterSignIn } from '@/features/auth/postAuthRoute';
 import {
   clearPendingRegistration,
   getPendingRegistration,
 } from '@/features/auth/pendingRegistrationStore';
+import { customerActions } from '@/features/customer/store';
 import { unlockUiPreview } from '@/features/preview/uiPreviewSession';
-import { completeCustomerRegistration } from '@/services/api/auth';
+import { completeCustomerRegistration, loginCustomer } from '@/services/api/auth';
 import { brand, customerFonts } from '@/theme';
 
 type RuleId = 'length' | 'upper' | 'lower' | 'number';
@@ -23,14 +26,21 @@ const RULES: { id: RuleId; label: string; test: (value: string) => boolean }[] =
   { id: 'number', label: 'Include a number (0–9)', test: (v) => /\d/.test(v) },
 ];
 
+type Notice = {
+  tone: 'error' | 'success' | 'info';
+  message: string;
+  action?: { label: string; onPress: () => void };
+};
+
 /**
- * Screen 06 — Set your password (final step of customer registration).
+ * Registration step 3 — set a password, then sign the customer straight in.
  */
 export function SetPasswordScreen() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [notice, setNotice] = useState<Notice | undefined>();
 
   const ruleState = useMemo(
     () => RULES.map((rule) => ({ ...rule, met: rule.test(password) })),
@@ -49,14 +59,12 @@ export function SetPasswordScreen() {
       router.back();
       return;
     }
-    router.replace('/auth');
+    router.replace('/auth/sign-up');
   };
 
   const handleCreateAccount = async () => {
     setTouched(true);
-    if (!canSubmit) {
-      return;
-    }
+    if (!canSubmit) return;
 
     if (FRONTEND_ONLY) {
       unlockUiPreview();
@@ -65,23 +73,25 @@ export function SetPasswordScreen() {
     }
 
     if (!isApiConfigured()) {
-      Alert.alert(
-        'API not configured',
-        'Set EXPO_PUBLIC_API_BASE_URL to your Laravel origin. No account was created.',
-      );
+      setNotice({
+        tone: 'error',
+        message: 'The app is not connected to the YuktiOne server yet. No account was created.',
+      });
       return;
     }
 
     const pending = getPendingRegistration();
     if (!pending?.userId) {
-      Alert.alert(
-        'Registration incomplete',
-        'Verify your email with OTP first, then set your password. No account was completed.',
-      );
+      setNotice({
+        tone: 'error',
+        message: 'Your sign-up session has expired. Please start again and verify your email.',
+        action: { label: 'Start again', onPress: () => router.replace('/auth/sign-up') },
+      });
       return;
     }
 
     setSubmitting(true);
+    setNotice(undefined);
     try {
       const result = await completeCustomerRegistration({
         user_id: pending.userId,
@@ -89,16 +99,28 @@ export function SetPasswordScreen() {
         password_confirmation: confirm,
       });
       if (!result.ok) {
-        Alert.alert('Could not complete registration', result.message);
+        setNotice({ tone: 'error', message: result.message });
         return;
       }
+
+      const email = (result.email ?? pending.email).trim().toLowerCase();
       clearPendingRegistration();
-      Alert.alert('Account created', result.message, [
-        {
-          text: 'Sign in',
-          onPress: () => router.replace('/auth'),
-        },
-      ]);
+
+      // Sign them in right away so they land in the app, not back on a form.
+      const login = await loginCustomer({ email, password, forceLogin: true }).catch(() => null);
+      if (login?.kind === 'success') {
+        customerActions.signInFromApi(login.data.user);
+        leaveAuthAfterSignIn();
+        return;
+      }
+
+      setNotice({
+        tone: 'success',
+        message: 'Your account is ready. Sign in to get started.',
+        action: { label: 'Sign In', onPress: () => router.replace('/auth') },
+      });
+    } catch {
+      setNotice({ tone: 'error', message: 'Something went wrong. Please try again.' });
     } finally {
       setSubmitting(false);
     }
@@ -106,24 +128,27 @@ export function SetPasswordScreen() {
 
   return (
     <AuthShell
-      headline="Almost there. Secure your"
-      accent="account."
-      points={['Verified email', 'Private & protected']}
       badge="LAST STEP"
       title="Set your password"
-      lead="Create a secure password for your account"
+      lead="Create a secure password for your account."
       onBack={handleBack}
     >
+      <AuthSteps current={3} />
+
       <FormInput
         label="Password"
         icon="lock-closed-outline"
         placeholder="Enter password"
         password
         value={password}
-        onChangeText={setPassword}
+        onChangeText={(value) => {
+          setPassword(value);
+          setNotice(undefined);
+        }}
         autoCapitalize="none"
         textContentType="newPassword"
         autoComplete="password-new"
+        returnKeyType="next"
       />
       <FormInput
         label="Confirm password"
@@ -131,12 +156,17 @@ export function SetPasswordScreen() {
         placeholder="Confirm password"
         password
         value={confirm}
-        onChangeText={setConfirm}
+        onChangeText={(value) => {
+          setConfirm(value);
+          setNotice(undefined);
+        }}
         onBlur={() => setTouched(true)}
         autoCapitalize="none"
         textContentType="newPassword"
         autoComplete="password-new"
         error={mismatchError}
+        returnKeyType="go"
+        onSubmitEditing={() => void handleCreateAccount()}
       />
 
       <View style={styles.rulesCard} accessibilityRole="summary">
@@ -157,8 +187,10 @@ export function SetPasswordScreen() {
         ))}
       </View>
 
+      {notice ? <AuthNotice tone={notice.tone} message={notice.message} action={notice.action} /> : null}
+
       <PrimaryButton
-        label="Create Account"
+        label={submitting ? 'Creating account…' : 'Create account'}
         loading={submitting}
         disabled={!canSubmit}
         onPress={() => void handleCreateAccount()}

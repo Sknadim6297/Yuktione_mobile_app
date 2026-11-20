@@ -1,10 +1,11 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { AuthShell, PrimaryButton } from '@/components/brand';
 import { PressableScale } from '@/components/motion';
 import { FRONTEND_ONLY } from '@/constants/frontendOnly';
+import { AuthNotice, AuthSteps } from '@/features/auth/AuthParts';
 import { OtpCodeInput } from '@/features/auth/otp/OtpCodeInput';
 import {
   clearOtpFlowContext,
@@ -17,24 +18,26 @@ import { useCountdownDeadline } from '@/features/auth/otp/useCountdownDeadline';
 import { getSelectedAuthRole } from '@/features/auth/roleStore';
 import { brand, customerFonts, motion } from '@/theme';
 
+type Notice = { tone: 'error' | 'success' | 'info'; message: string };
+
 /**
- * Screen 05 — OTP Verification / Enter 6-digit code.
- * Rendered on the shared website auth layout (AuthShell).
+ * Registration step 2 — enter the 6-digit code emailed to the customer.
+ * Submits automatically once all six digits are in.
  */
 export function OtpVerificationScreen() {
   const [context, setContext] = useState<OtpFlowContext | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | undefined>();
+  const [notice, setNotice] = useState<Notice | undefined>();
   const [verifying, setVerifying] = useState(false);
-  const [unavailableHint, setUnavailableHint] = useState<string | undefined>();
+  const [resending, setResending] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      const current = getOtpFlowContext();
-      setContext(current);
+      setContext(getOtpFlowContext());
       setCode('');
       setError(undefined);
-      setUnavailableHint(undefined);
+      setNotice(undefined);
       return () => {
         setCode('');
       };
@@ -45,8 +48,6 @@ export function OtpVerificationScreen() {
     context?.codeDispatchConfirmed ? context.resendAvailableAt : null,
   );
 
-  const canContinue = code.length === 6 && !verifying;
-
   const handleBack = () => {
     setCode('');
     if (router.canGoBack()) {
@@ -54,15 +55,12 @@ export function OtpVerificationScreen() {
       return;
     }
     const role = context?.role ?? getSelectedAuthRole();
-    if (role === 'professional') {
-      router.replace('/professional/register');
-      return;
-    }
-    router.replace('/auth');
+    router.replace(role === 'professional' ? '/professional/register' : '/auth/sign-up');
   };
 
-  const handleVerify = async () => {
-    if (!context || code.length !== 6) {
+  const handleVerify = async (value: string) => {
+    if (verifying) return;
+    if (!context || value.length !== 6) {
       setError('Enter the 6-digit verification code.');
       return;
     }
@@ -75,25 +73,16 @@ export function OtpVerificationScreen() {
 
     setVerifying(true);
     setError(undefined);
-    setUnavailableHint(undefined);
+    setNotice(undefined);
 
     try {
-      const result = await requestOtpVerify({ context, code });
+      const result = await requestOtpVerify({ context, code: value });
       if (!result.ok) {
         if (result.unavailable) {
-          setUnavailableHint(result.message);
-          Alert.alert('Verification unavailable', result.message, [
-            { text: 'OK' },
-            {
-              text: 'Open Set Password UI',
-              onPress: () => {
-                setCode('');
-                router.push('/auth/set-password');
-              },
-            },
-          ]);
+          setNotice({ tone: 'error', message: result.message });
         } else {
           setError(result.message);
+          setCode('');
         }
         return;
       }
@@ -101,66 +90,64 @@ export function OtpVerificationScreen() {
       setCode('');
       clearOtpFlowContext();
       router.replace('/auth/set-password');
+    } catch {
+      setNotice({ tone: 'error', message: 'Could not verify the code. Please try again.' });
     } finally {
       setVerifying(false);
     }
   };
 
   const handleResend = async () => {
-    if (!context) {
-      return;
-    }
-
+    if (!context || resending) return;
     if (FRONTEND_ONLY) {
       setCode('');
       return;
     }
+    if (context.codeDispatchConfirmed && countdown.isRunning) return;
 
-    if (context.codeDispatchConfirmed && countdown.isRunning) {
-      return;
+    setResending(true);
+    setNotice(undefined);
+    setError(undefined);
+    try {
+      const result = await requestOtpResend(context);
+      if (!result.ok) {
+        setNotice({ tone: 'error', message: result.message });
+        return;
+      }
+      setContext(
+        updateOtpFlowContext({
+          codeDispatchConfirmed: true,
+          challengeId: result.data.challengeId,
+          resendAvailableAt: result.data.resendAvailableAt,
+        }),
+      );
+      setCode('');
+      setNotice({ tone: 'success', message: 'A new code is on its way to your email.' });
+    } catch {
+      setNotice({ tone: 'error', message: 'Could not resend the code. Please try again.' });
+    } finally {
+      setResending(false);
     }
-
-    setUnavailableHint(undefined);
-    const result = await requestOtpResend(context);
-
-    if (!result.ok) {
-      setUnavailableHint(result.message);
-      Alert.alert('Resend unavailable', result.message);
-      return;
-    }
-
-    const next = updateOtpFlowContext({
-      codeDispatchConfirmed: true,
-      challengeId: result.data.challengeId,
-      resendAvailableAt: result.data.resendAvailableAt,
-    });
-    setContext(next);
-    setCode('');
   };
 
   if (!context) {
     return (
       <AuthShell
-        headline="Let's start"
-        accent="again."
         badge="VERIFICATION"
-        title="OTP session missing"
-        lead="Start from registration with a valid email so your details can be kept safely. OTP codes are never stored in the link."
+        title="Verification expired"
+        lead="Your sign-up session is no longer active. Start again to get a fresh code."
         onBack={() => router.replace('/auth')}
       >
-        <PrimaryButton label="Back to Sign In / Sign Up" onPress={() => router.replace('/auth')} />
+        <PrimaryButton label="Start sign-up again" onPress={() => router.replace('/auth/sign-up')} />
       </AuthShell>
     );
   }
 
   return (
     <AuthShell
-      headline="One quick check and you're"
-      accent="in."
-      points={['Secure verification', 'Code expires in minutes']}
       badge="VERIFY EMAIL"
       title="Enter 6-digit code"
-      lead="We've sent it to"
+      lead="We've emailed a verification code to"
       onBack={handleBack}
       footer={
         <View style={styles.resendWrap}>
@@ -172,50 +159,51 @@ export function OtpVerificationScreen() {
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel="Resend code"
-              disabled={verifying}
+              disabled={verifying || resending}
               scaleTo={motion.press.in}
               onPress={() => {
                 void handleResend();
               }}
               style={styles.resendHit}
             >
-              <Text style={styles.resendAction}>Resend code</Text>
+              <Text style={styles.resendAction}>{resending ? 'Sending…' : "Didn't get it? Resend code"}</Text>
             </PressableScale>
           )}
-          {!FRONTEND_ONLY && unavailableHint ? (
-            <Text style={styles.hint} accessibilityLiveRegion="polite">
-              {unavailableHint}
-            </Text>
-          ) : null}
         </View>
       }
     >
-      <Text style={styles.email} accessibilityLabel={`Email ${context.email}`}>
-        {context.email}
-      </Text>
+      <AuthSteps current={2} />
+
+      <View style={styles.emailRow}>
+        <Text style={styles.email} numberOfLines={1} accessibilityLabel={`Email ${context.email}`}>
+          {context.email}
+        </Text>
+        <Text style={styles.change} accessibilityRole="link" onPress={handleBack}>
+          Change
+        </Text>
+      </View>
 
       <OtpCodeInput
         value={code}
         onChange={(next) => {
           setCode(next);
-          if (error) {
-            setError(undefined);
-          }
-          if (unavailableHint) {
-            setUnavailableHint(undefined);
-          }
+          if (error) setError(undefined);
+          if (notice) setNotice(undefined);
+          if (next.length === 6) void handleVerify(next);
         }}
         disabled={verifying}
         error={error}
         autoFocus
       />
 
+      {notice ? <AuthNotice tone={notice.tone} message={notice.message} /> : null}
+
       <PrimaryButton
-        label="Continue"
+        label={verifying ? 'Verifying…' : 'Verify & continue'}
         loading={verifying}
-        disabled={!canContinue}
+        disabled={code.length !== 6 || verifying}
         onPress={() => {
-          void handleVerify();
+          void handleVerify(code);
         }}
       />
     </AuthShell>
@@ -223,26 +211,25 @@ export function OtpVerificationScreen() {
 }
 
 const styles = StyleSheet.create({
+  emailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: -6,
+  },
   email: {
+    flexShrink: 1,
     fontFamily: customerFonts.bold,
-    fontSize: 16,
+    fontSize: 15.5,
     lineHeight: 22,
     color: brand.plum,
     textAlign: 'center',
-    marginTop: -10,
   },
-  resendWrap: { alignItems: 'center', gap: 4, minHeight: 44, justifyContent: 'center' },
+  change: { fontFamily: customerFonts.semibold, fontSize: 13, color: brand.grey, textDecorationLine: 'underline' },
+  resendWrap: { alignItems: 'center', minHeight: 44, justifyContent: 'center' },
   resendHit: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 },
   resendText: { fontFamily: customerFonts.regular, fontSize: 14, color: brand.grey },
   resendAccent: { fontFamily: customerFonts.bold, color: brand.plum },
   resendAction: { fontFamily: customerFonts.bold, fontSize: 14, color: brand.plum },
-  hint: {
-    fontFamily: customerFonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: brand.grey,
-    textAlign: 'center',
-    maxWidth: 320,
-    marginTop: 4,
-  },
 });
