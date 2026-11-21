@@ -177,6 +177,12 @@ const IN_APP_TOOL_SLUGS = new Set([
   'digital-journal',
   'gratitude-journal',
   'bmi-bmr-calculator',
+  'water-intake-tracker',
+  'weight-journey',
+  'calorie-nutrition-tracker',
+  'career-interest-test',
+  'skills-strengths-assessment',
+  'tarot-reflection',
 ]);
 
 export function runsInApp(tool: Pick<ApiTool, 'slug'>): boolean {

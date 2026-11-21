@@ -14,6 +14,15 @@ import {
   WebsiteToolScreen,
 } from '@/features/tools/ToolDetailParts';
 import { ToolDetailScreen } from '@/features/tools/ToolDetailScreen';
+import { GratitudeScreen } from '@/features/tools/gratitude/GratitudeScreen';
+import { JournalScreen } from '@/features/tools/journal/JournalScreen';
+import { MoodCheckinScreen } from '@/features/tools/mood/MoodCheckinScreen';
+import { WaterIntakeScreen } from '@/features/tools/water/WaterIntakeScreen';
+import { CareerInterestScreen } from '@/features/tools/career/CareerInterestScreen';
+import { NutritionScreen } from '@/features/tools/nutrition/NutritionScreen';
+import { SkillsStrengthsScreen } from '@/features/tools/skills/SkillsStrengthsScreen';
+import { TarotReflectionScreen } from '@/features/tools/tarot/TarotReflectionScreen';
+import { WeightJourneyScreen } from '@/features/tools/weight/WeightJourneyScreen';
 import { getPreviewTool } from '@/features/tools/toolCatalog';
 import { TOOLS_LIVE, useToolDetail } from '@/features/tools/toolsCatalogue';
 import { colors, fontFamilies, spacing } from '@/theme';
@@ -36,6 +45,35 @@ export default function ToolDetailRoute() {
   useEffect(() => {
     if (redirect) router.replace(redirect);
   }, [redirect]);
+
+  // Premium multi-step runners — keep Mood, Journal and Gratitude off ToolRunner.
+  if (id === 'mood-check-in' || id === 'daily-mood-check-in') {
+    return <MoodCheckinScreen />;
+  }
+  if (id === 'journal' || id === 'digital-journal') {
+    return <JournalScreen />;
+  }
+  if (id === 'gratitude' || id === 'gratitude-journal') {
+    return <GratitudeScreen />;
+  }
+  if (id === 'water' || id === 'water-intake-tracker') {
+    return <WaterIntakeScreen />;
+  }
+  if (id === 'weight-tracker' || id === 'weight-journey') {
+    return <WeightJourneyScreen />;
+  }
+  if (id === 'nutrition' || id === 'calorie-nutrition-tracker') {
+    return <NutritionScreen />;
+  }
+  if (id === 'career-interest' || id === 'career-interest-test') {
+    return <CareerInterestScreen />;
+  }
+  if (id === 'skills-strengths' || id === 'skills-strengths-assessment') {
+    return <SkillsStrengthsScreen />;
+  }
+  if (id === 'tarot' || id === 'tarot-reflection') {
+    return <TarotReflectionScreen />;
+  }
 
   if (local) return <ToolRunnerScreen id={id} />;
 

@@ -21,13 +21,6 @@ import {
   toIsoDate,
   toolById,
 } from '@/features/customer/content';
-import { useAccountScope } from '@/features/customer/myspace/accountData';
-import {
-  AccountGratitude,
-  AccountJournal,
-  AccountMoodCheckin,
-  SignInToSave,
-} from '@/features/customer/myspace/AccountTools';
 import { EmptyNote, SourceTag } from '@/features/customer/myspace/parts';
 import { customerActions, useCustomerState } from '@/features/customer/store';
 import {
@@ -42,9 +35,6 @@ import {
   TealButton,
   TrendChart,
 } from '@/features/customer/ui';
-import { FRONTEND_ONLY } from '@/constants/frontendOnly';
-import { ToolHeroCard } from '@/features/tools/ToolDetailParts';
-import { TOOLS_LIVE, useToolsCatalogue } from '@/features/tools/toolsCatalogue';
 import { customer, customerFonts } from '@/theme';
 
 function openTool(id: string): void {
@@ -204,24 +194,9 @@ export function MoodResultScreen() {
   );
 }
 
-/** These save through the website's recorders; offline preview keeps the device-only runners. */
-const ACCOUNT_TOOL_IDS = new Set(['mood-check-in', 'journal', 'gratitude']);
-
-const ACCOUNT_TOOL_SLUGS: Record<string, string> = {
-  'mood-check-in': 'daily-mood-check-in',
-  journal: 'digital-journal',
-  gratitude: 'gratitude-journal',
-};
-
 export function ToolRunnerScreen({ id }: { id: string }) {
   const tool = toolById(id);
   const state = useCustomerState();
-  const accountLive = useAccountScope().enabled;
-  const websiteSlug = ACCOUNT_TOOL_SLUGS[id];
-  const websiteTool = useToolsCatalogue({
-    select: (data) => data.tools.find((item) => item.slug === websiteSlug) ?? null,
-    enabled: TOOLS_LIVE && Boolean(websiteSlug),
-  }).data;
   const [text, setText] = useState('');
   const [thanks, setThanks] = useState(['', '', '']);
   const [height, setHeight] = useState('');
@@ -255,7 +230,6 @@ export function ToolRunnerScreen({ id }: { id: string }) {
   }
 
   const saved = state.savedToolIds.includes(tool.id);
-  const accountTool = !FRONTEND_ONLY && ACCOUNT_TOOL_IDS.has(tool.id);
   const cups = state.waterDate === toIsoDate(new Date()) ? state.waterCups : 0;
 
   return (
@@ -269,44 +243,16 @@ export function ToolRunnerScreen({ id }: { id: string }) {
         />
       }
     >
-      {accountTool && websiteTool ? (
-        <ToolHeroCard tool={websiteTool} />
-      ) : (
-        <>
-          <View style={[styles.tileIcon, { backgroundColor: tool.tint, width: 56, height: 56 }]}>
-            <Ionicons name={tool.icon} size={26} color={tool.ink} />
-          </View>
-          <Heading>{tool.name}</Heading>
-          <Subtitle>{tool.blurb}</Subtitle>
-          <Text style={[styles.price, tool.price === 'paid' && styles.pricePaid]}>
-            {tool.price === 'free' ? 'Free' : 'Paid · payment API not connected'}
-          </Text>
-        </>
-      )}
+      <View style={[styles.tileIcon, { backgroundColor: tool.tint, width: 56, height: 56 }]}>
+        <Ionicons name={tool.icon} size={26} color={tool.ink} />
+      </View>
+      <Heading>{tool.name}</Heading>
+      <Subtitle>{tool.blurb}</Subtitle>
+      <Text style={[styles.price, tool.price === 'paid' && styles.pricePaid]}>
+        {tool.price === 'free' ? 'Free' : 'Paid · payment API not connected'}
+      </Text>
 
-      {accountTool ? (
-        accountLive ? (
-          tool.id === 'mood-check-in' ? <AccountMoodCheckin /> : tool.id === 'journal' ? <AccountJournal /> : <AccountGratitude />
-        ) : (
-          <SignInToSave what={tool.id === 'mood-check-in' ? 'check-in' : tool.id === 'journal' ? 'journal entry' : 'gratitude entry'} />
-        )
-      ) : null}
-
-      {tool.runner === 'mood' && !accountTool ? (
-        <View style={styles.stack}>
-          {(['happy', 'calm', 'okay', 'low', 'stressed'] as const).map((moodId) => {
-            const mood = moodById(moodId);
-            return (
-              <Pressable key={moodId} style={styles.listRow} onPress={() => { customerActions.setMood(moodId); router.push('/insights/mood'); }}>
-                <Text style={styles.bigEmoji}>{mood.emoji}</Text>
-                <Text style={styles.listTitle}>{mood.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : null}
-
-      {(tool.runner === 'journal' || tool.runner === 'note') && !accountTool ? (
+      {tool.runner === 'journal' || tool.runner === 'note' ? (
         <View style={styles.stack}>
           <SourceTag kind="device" />
           <TextInput
@@ -332,7 +278,7 @@ export function ToolRunnerScreen({ id }: { id: string }) {
         </View>
       ) : null}
 
-      {tool.runner === 'gratitude' && !accountTool ? (
+      {tool.runner === 'gratitude' ? (
         <View style={styles.stack}>
           {thanks.map((line, index) => (
             <TextInput
@@ -411,9 +357,7 @@ export function ToolRunnerScreen({ id }: { id: string }) {
         </View>
       ) : null}
 
-      {accountTool ? null : (
-        <Text style={styles.muted}>Reference price label only. {tool.price === 'paid' ? formatInr(199) : 'No charge.'}</Text>
-      )}
+      <Text style={styles.muted}>Reference price label only. {tool.price === 'paid' ? formatInr(199) : 'No charge.'}</Text>
     </CustomerPage>
   );
 }

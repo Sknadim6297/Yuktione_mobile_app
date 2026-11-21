@@ -3,9 +3,11 @@ import { brand } from './brand';
 /**
  * Customer UI tokens, mapped onto the YuktiOne website palette (see brand.ts).
  *
- * Legacy key names (teal, navy, mint, …) are kept so every screen keeps compiling;
- * they now resolve to website colours: teal → plum, navy → ink, mint → plum-soft.
- * Prefer the semantic keys (primary, ink, primarySoft, accent) in new code.
+ * Legacy key names (teal, navy, mint, …) are kept so every screen keeps compiling.
+ * Important: `customer.teal` / `customer.navy` currently resolve to plum / ink so
+ * Home, Explore, Mood and Journal stay visually stable. For approved wellness teal
+ * (#36877F) and navy (#142B4D) on new premium tools, use `toolPalette` instead.
+ * Prefer the semantic keys (primary, ink, primarySoft, accent) in general chrome.
  */
 export const customer = {
   // Semantic

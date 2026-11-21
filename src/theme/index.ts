@@ -4,6 +4,7 @@ import { customer, customerFonts } from './customer';
 import { motion } from './motion';
 import { radius, spacing } from './spacing';
 import { shadows } from './shadows';
+import { toolPalette } from './toolPalette';
 import { fontFamilies, typography } from './typography';
 
 export const theme = {
@@ -12,6 +13,7 @@ export const theme = {
   colors,
   customer,
   customerFonts,
+  toolPalette,
   typography,
   fontFamilies,
   spacing,
@@ -28,6 +30,7 @@ export {
   colors,
   customer,
   customerFonts,
+  toolPalette,
   typography,
   fontFamilies,
   spacing,

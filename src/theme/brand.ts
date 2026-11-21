@@ -27,6 +27,19 @@ export const brand = {
   heroPearl: '#F5F1EB',
   /** Accent underline used under highlighted words on the website. */
   underline: '#F4A0C6',
+
+  /**
+   * Wellness / psychology-tool accents (approved for premium native tools).
+   * Kept separate from plum customer chrome so Home/Explore stay brand-plum.
+   */
+  wellnessTeal: '#36877F',
+  wellnessTealDark: '#2C6E68',
+  wellnessTealSoft: '#E8F3F1',
+  wellnessTealSoftDeep: '#D5EBE7',
+  wellnessNavy: '#142B4D',
+  wellnessCream: '#F7F3EC',
+  wellnessLavender: '#EDE8F6',
+  wellnessLavenderInk: '#5B4B8A',
 } as const;
 
 /** Gradient stops as used on the website (CSS linear-gradient equivalents). */
